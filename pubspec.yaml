@@ -1,0 +1,78 @@
+name: market_app
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 2.0.0+7
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  firebase_core: ^4.5.0
+  cloud_firestore: ^6.1.2
+  firebase_auth: ^6.2.0
+  webview_flutter: ^4.4.2
+  http: ^1.2.1
+  intl: ^0.20.2
+  google_fonts: ^6.2.1
+  font_awesome_flutter: ^10.7.0
+  animations: ^2.0.11
+  flutter_staggered_animations: ^1.0.0
+  provider: ^6.1.2
+  image_picker: ^1.0.7
+  just_audio: ^0.9.36
+  curved_navigation_bar: ^1.0.3
+  shimmer: ^3.0.0
+  url_launcher: ^6.3.2
+  cached_network_image: ^3.3.1
+  glassmorphism: ^3.0.0
+  flutter_blurhash: ^0.8.2
+  flutter_dotenv: ^6.0.0
+  sensors_plus: ^7.0.0
+  image_cropper: ^11.0.0
+  permission_handler: ^12.0.1
+  flutter_local_notifications: ^21.0.0
+  timezone: ^0.11.0
+  share_plus: ^10.1.3
+  app_links: ^6.3.2
+  googleapis_auth: ^1.6.0
+  firebase_messaging: ^16.1.3
+  google_sign_in: ^6.2.1
+  path_provider: ^2.1.5
+  screenshot: ^3.0.0
+  youtube_explode_dart: ^3.0.5
+  dio: ^5.9.2
+  audio_session: ^0.1.25
+  xml: ^6.6.1
+  youtube_player_flutter: ^9.1.3
+  video_player: ^2.11.1
+  chewie: ^1.13.0
+  slide_to_act: ^2.0.2
+  shared_preferences: ^2.5.5
+  flutter_cache_manager: ^3.4.1
+  lucide_icons: ^0.257.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: "^0.13.1"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+    - assets/express_banner.png
+    - assets/rent_bikes.png
+    - assets/bickyzz_banner.png
+    - assets/1775883478401171421y0pemdar-voicemaker.in-speech.mp3
+    - .env
+    - assets/service-account.json
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/logo.png"
