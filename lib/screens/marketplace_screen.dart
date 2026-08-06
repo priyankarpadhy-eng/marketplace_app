@@ -8,12 +8,14 @@ import '../widgets/listing_card.dart';
 import '../models/app_user.dart';
 import 'list_product_screen.dart';
 import 'listing_detail_screen.dart';
+
 import 'bike_rental_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../widgets/guest_login_sheet.dart';
 import 'shop/shop_setup_screen.dart';
-import 'food/food_shop_list_screen.dart';
 import '../theme/app_theme.dart';
+import '../models/food_models.dart';
+import '../services/food_service.dart';
+import '../widgets/app_loader.dart';
 
 // â”€â”€ Design Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const _kBg          = Color(0xFFF7F0FF);
@@ -52,6 +54,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   List<MarketplaceItem> _items = [];
   bool _loading = true;
   int _refreshesLeft = MarketplaceService.maxDailyRefreshes;
+  StreamSubscription<List<MarketplaceItem>>? _realtimeSub;
 
   // Carousel
   final PageController _pageCtrl = PageController();
@@ -62,15 +65,35 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   void initState() {
     super.initState();
     _searchCtrl.addListener(() => setState(() {}));
+    _startRealtimeUpdates();
     _loadData(force: false);
   }
 
   @override
   void dispose() {
+    _realtimeSub?.cancel();
     _searchCtrl.dispose();
     _pageCtrl.dispose();
     _autoScrollTimer?.cancel();
     super.dispose();
+  }
+
+  // Real-time Firestore stream: picks up new listings automatically
+  void _startRealtimeUpdates() {
+    _realtimeSub?.cancel();
+    _realtimeSub = _svc.getListingsStream().listen(
+      (items) {
+        if (!mounted) return;
+        setState(() {
+          _items = items;
+          _loading = false;
+        });
+        _startCarouselTimer(items);
+      },
+      onError: (Object e) {
+        print('Marketplace stream error: $e');
+      },
+    );
   }
 
   Future<void> _loadData({required bool force}) async {
@@ -94,7 +117,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'âš¡ Daily refresh limit reached (5/day). Resets tomorrow.',
+              'Daily refresh limit reached (10/day). Resets tomorrow.',
               style: GoogleFonts.poppins(fontSize: 13),
             ),
             backgroundColor: _kDark,
@@ -123,6 +146,35 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     });
   }
 
+  void _showComingSoon() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.rocket_launch_rounded, color: AppTheme.accent(isDark)),
+            const SizedBox(width: 10),
+            Text('Coming Soon', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary)),
+          ],
+        ),
+        content: Text(
+          'We are working hard to bring this feature to you. Stay tuned!',
+          style: GoogleFonts.roboto(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.accent(isDark)),
+            child: Text('Got it', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Apply search filter
   List<MarketplaceItem> get _filtered {
     final q = _searchCtrl.text.toLowerCase();
@@ -140,7 +192,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     final textPrimary   = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
     final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
 
-    final firstName = widget.currentUser.name.split(' ').first;
+    final firstName = widget.currentUser.name.isNotEmpty ? widget.currentUser.name.split(' ').first : 'User';
     final filtered  = _filtered;
     final bannerItems = _items.take(5).toList();
     final listItems   = _searchCtrl.text.isEmpty && _items.length > 5
@@ -158,13 +210,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         padding: const EdgeInsets.only(bottom: 95),
         child: GestureDetector(
           onTap: () {
-            if (widget.currentUser.role == 'guest') {
-              showModalBottomSheet(context: context, builder: (_) => const GuestLoginSheet());
-            } else {
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => ListProductScreen(currentUser: widget.currentUser),
-              ));
-            }
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ListProductScreen(currentUser: widget.currentUser),
+            ));
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -191,7 +239,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           color: _kPrimary,
           onRefresh: _onRefresh,
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: _kPrimary))
+              ? const AppLoader()
               : ListView(
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
@@ -239,32 +287,23 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                             style: GoogleFonts.roboto(fontSize: 11, fontWeight: FontWeight.w600, color: textPrimary),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(color: AppTheme.surface(isDark), shape: BoxShape.circle, border: Border.all(color: AppTheme.border(isDark))),
-                          child: Icon(Icons.notifications_outlined, size: 18, color: textPrimary),
-                        ),
                       ],
                     ),
 
                     const SizedBox(height: 18),
 
-                    // â”€â”€ Search bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                    // ── Search bar ───────────────────────────────────────────
                     Container(
                       decoration: BoxDecoration(
-                        color: AppTheme.surface(isDark),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: AppTheme.border(isDark)),
+                        color: isDark ? const Color(0xFF262626) : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-
-
                       child: TextField(
                         controller: _searchCtrl,
-                        style: GoogleFonts.roboto(fontSize: 13, color: textPrimary),
+                        style: GoogleFonts.outfit(fontSize: 14, color: textPrimary, fontWeight: FontWeight.w500),
                         decoration: InputDecoration(
                           hintText: 'Search products, items...',
-                          hintStyle: GoogleFonts.roboto(color: textSecondary, fontSize: 13),
+                          hintStyle: GoogleFonts.outfit(color: textSecondary, fontSize: 14, fontWeight: FontWeight.w400),
                           prefixIcon: Icon(Icons.search_rounded, color: textSecondary, size: 20),
                           suffixIcon: _searchCtrl.text.isNotEmpty
                               ? IconButton(
@@ -298,20 +337,18 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                         const SizedBox(width: 10),
                         _StatCard(icon: Icons.check_circle_outline_rounded, count: '$totalAvail', label: 'Available', accentColor: AppTheme.success, isDark: isDark, onTap: null),
                         const SizedBox(width: 10),
-                        _StatCard(icon: Icons.motorcycle_rounded, count: '$totalBikes', label: 'Bikes', accentColor: AppTheme.warning, isDark: isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BikeRentalScreen(currentUser: widget.currentUser)))),
+                        _StatCard(icon: Icons.motorcycle_rounded, count: '$totalBikes', label: 'Bikes', accentColor: AppTheme.warning, isDark: isDark, onTap: _showComingSoon),
                       ]),
                       const SizedBox(height: 20),
                     ],
 
                     // â”€â”€ Bike Rentals card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     if (_searchCtrl.text.isEmpty) ...[
-                      _ActivityFoodCard(onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => FoodShopListScreen(currentUser: widget.currentUser),
-                      ))),
+                      _ActivityFoodCard(onTap: _showComingSoon),
                       const SizedBox(height: 16),
-                      _ActivityBikeCard(onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => BikeRentalScreen(currentUser: widget.currentUser),
-                      ))),
+                      _ActiveOrderTracker(userId: widget.currentUser.id),
+                      const SizedBox(height: 16),
+                      _ActivityBikeCard(onTap: _showComingSoon),
                       const SizedBox(height: 20),
                     ],
 
@@ -416,25 +453,30 @@ class _HeroCarousel extends StatelessWidget {
                         top: 0, left: 0, bottom: 0, right: 130,
                         child: Padding(
                           padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 2),
-                              Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800, height: 1.2)),
-                              Text('by ${item.sellerName}', maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(color: Colors.white.withOpacity(0.85), fontSize: 11)),
-                              const SizedBox(height: 10),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                                decoration: BoxDecoration(color: _kDark, borderRadius: BorderRadius.circular(20)),
-                                child: Text('₹${item.price.toStringAsFixed(0)}  >',
-                                  style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
-                              ),
-                            ],
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(color: const Color(0xFF111111).withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 2),
+                                Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(color: const Color(0xFF111111), fontSize: 16, fontWeight: FontWeight.w800, height: 1.2)),
+                                const SizedBox(height: 2),
+                                Text(item.description, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(color: const Color(0xFF111111).withOpacity(0.8), fontSize: 11, height: 1.3)),
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                  decoration: BoxDecoration(color: _kDark, borderRadius: BorderRadius.circular(20)),
+                                  child: Text('₹${item.price.toStringAsFixed(0)}  >',
+                                    style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -833,6 +875,146 @@ class _ActivityFoodCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Active Order Tracker ──────────────────────────────────────────
+class _ActiveOrderTracker extends StatelessWidget {
+  final String userId;
+  const _ActiveOrderTracker({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<FoodOrder>>(
+      stream: FoodService().getUserOrders(userId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        // Get most recent order
+        final order = snapshot.data!.first;
+        
+        // Don't show if cancelled
+        if (order.status == OrderStatus.cancelled) {
+          return const SizedBox.shrink();
+        }
+
+        // Hide the card 5 minutes after it was marked as delivered
+        if (order.status == OrderStatus.delivered) {
+          final timeSinceDelivery = DateTime.now().difference(order.updatedAt ?? order.createdAt);
+          if (timeSinceDelivery.inMinutes >= 5) {
+            return const SizedBox.shrink();
+          }
+        }
+
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final bgColor = isDark ? AppTheme.darkSurface : AppTheme.lightSurface;
+        final textColor = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+
+        int currentStep = 0;
+        String statusText = 'Waiting for restaurant...';
+        
+        switch (order.status) {
+          case OrderStatus.new_order:
+            currentStep = 0;
+            statusText = 'Waiting for restaurant to confirm';
+            break;
+          case OrderStatus.confirmed:
+            currentStep = 1;
+            statusText = 'The restaurant is preparing your food';
+            break;
+          case OrderStatus.preparing:
+            currentStep = 1;
+            statusText = 'The restaurant is preparing your food';
+            break;
+          case OrderStatus.ready_for_pickup:
+            currentStep = 2;
+            statusText = 'Your food is ready for pickup/delivery!';
+            break;
+          case OrderStatus.delivered:
+            currentStep = 3;
+            statusText = 'Delivered. Enjoy your meal!';
+            break;
+          default:
+            currentStep = 0;
+            break;
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.border(isDark)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Active Food Order', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                  Text('#${order.id.substring(0, 5).toUpperCase()}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF10B981))),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text('Order Status:', style: GoogleFonts.roboto(fontSize: 12, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary)),
+              Text(statusText, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w500, color: textColor)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _buildStep(context, 0, currentStep, 'New', isDark),
+                  _buildLine(context, 1, currentStep, isDark),
+                  _buildStep(context, 1, currentStep, 'Kitchen', isDark),
+                  _buildLine(context, 2, currentStep, isDark),
+                  _buildStep(context, 2, currentStep, 'Ready', isDark),
+                  _buildLine(context, 3, currentStep, isDark),
+                  _buildStep(context, 3, currentStep, 'Delivered', isDark),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStep(BuildContext context, int stepIndex, int currentStep, String label, bool isDark) {
+    final bool isActive = stepIndex <= currentStep;
+    final color = isActive ? const Color(0xFF10B981) : (isDark ? Colors.white24 : Colors.black12);
+    
+    return Column(
+      children: [
+        Container(
+          width: 20, height: 20,
+          decoration: BoxDecoration(
+            color: isActive ? color : Colors.transparent,
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 2),
+          ),
+          child: isActive 
+              ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
+              : null,
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: GoogleFonts.roboto(fontSize: 10, color: isActive ? (isDark ? Colors.white : Colors.black87) : (isDark ? Colors.white54 : Colors.black45), fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
+      ],
+    );
+  }
+
+  Widget _buildLine(BuildContext context, int targetStep, int currentStep, bool isDark) {
+    final bool isActive = targetStep <= currentStep;
+    final color = isActive ? const Color(0xFF10B981) : (isDark ? Colors.white24 : Colors.black12);
+    
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16), // offset for text below dot
+        height: 2,
+        color: color,
       ),
     );
   }

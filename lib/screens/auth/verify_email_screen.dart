@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   final User user;
@@ -69,8 +69,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       appBar: AppBar(
         title: const Text('Verify email'),
         actions: [
@@ -103,6 +105,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                     '${widget.user.email ?? ''}\n\n'
                     'Open the link in your email, then tap "I\'ve verified" '
                     'below to continue.',
+                    style: TextStyle(color: AppTheme.textSecondary(isDark)),
                   ),
                   const SizedBox(height: 16),
                   if (_message != null)
@@ -110,22 +113,23 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(
                         _message!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
+                          color: AppTheme.textPrimary(isDark),
                         ),
                       ),
                     ),
                   ElevatedButton(
                     onPressed: _sending ? null : _sendEmail,
                     child: _sending
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 18,
                             width: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor:
                                   AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
+                                      AppTheme.surface(isDark)),
                             ),
                           )
                         : const Text('Resend verification email'),
@@ -152,4 +156,3 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     );
   }
 }
-

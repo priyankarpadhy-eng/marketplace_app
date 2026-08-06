@@ -2,7 +2,7 @@ name: market_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 2.0.0+7
+version: 3.0.1+9
 
 environment:
   sdk: ^3.11.1
@@ -21,9 +21,8 @@ dependencies:
   font_awesome_flutter: ^10.7.0
   animations: ^2.0.11
   flutter_staggered_animations: ^1.0.0
-  provider: ^6.1.2
   image_picker: ^1.0.7
-  just_audio: ^0.9.36
+  just_audio: ^0.10.5
   curved_navigation_bar: ^1.0.3
   shimmer: ^3.0.0
   url_launcher: ^6.3.2
@@ -54,23 +53,32 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_cache_manager: ^3.4.1
   lucide_icons: ^0.257.0
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
+  flutter_riverpod: 2.5.1
+  file_picker: ^11.0.2
+  just_audio_background: ^0.0.1-beta.17
+  in_app_update: ^4.2.5
+  truecaller_sdk: ^1.2.0
+  lottie: ^3.1.0
+  animated_notch_bottom_bar: ^1.0.4
+  google_nav_bar: ^5.0.7
 
 dev_dependencies:
-  flutter_test:
-    sdk: flutter
+  build_runner: ^2.4.13
   flutter_lints: ^6.0.0
-  flutter_launcher_icons: "^0.13.1"
+  isar_generator: 3.1.0+1
+
+dependency_overrides:
+  isar_flutter_libs:
+    path: packages/isar_flutter_libs
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/logo.png
-    - assets/express_banner.png
-    - assets/rent_bikes.png
-    - assets/bickyzz_banner.png
-    - assets/1775883478401171421y0pemdar-voicemaker.in-speech.mp3
+    - assets/
+    - assets/images/onboarding/
     - .env
-    - assets/service-account.json
 
 flutter_launcher_icons:
   android: true

@@ -13,6 +13,7 @@ class Post {
   final int commentsCount;
   final List<String> likedBy;
   final String? image;
+  final List<String>? images;
   final String? video;
   
   // Freelancing specific
@@ -36,6 +37,7 @@ class Post {
     this.commentsCount = 0,
     this.likedBy = const [],
     this.image,
+    this.images,
     this.video,
     this.budget,
     this.contact,
@@ -68,6 +70,9 @@ class Post {
       commentsCount: data['comments'] ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
       image: data['image'],
+      images: data['images'] != null 
+          ? List<String>.from(data['images']) 
+          : (data['image'] != null ? [data['image']] : null),
       video: data['video'],
       budget: data['budget'],
       contact: data['contact'],
@@ -92,6 +97,9 @@ class Post {
       commentsCount: (data['comments'] as num?)?.toInt() ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
       image: data['image'],
+      images: data['images'] != null 
+          ? List<String>.from(data['images']) 
+          : (data['image'] != null ? [data['image']] : null),
       video: data['video'],
       budget: data['budget'],
       contact: data['contact'],
@@ -113,6 +121,7 @@ class Post {
       'comments': commentsCount,
       'likedBy': likedBy,
       'image': image,
+      if (images != null) 'images': images,
       'video': video,
       'budget': budget,
       'contact': contact,

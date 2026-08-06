@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
 import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -46,9 +46,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       appBar: AppBar(
-        title: const Text('Forgot password'),
+        title: Text('Forgot password', style: TextStyle(color: AppTheme.textPrimary(isDark))),
       ),
       body: SafeArea(
         child: Padding(
@@ -60,9 +62,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
+                  Text(
                     'Enter the email associated with your account. '
                     'We\'ll send you a password reset link.',
+                    style: TextStyle(color: AppTheme.textSecondary(isDark)),
                   ),
                   const SizedBox(height: 16),
                   if (_message != null)
@@ -70,17 +73,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(
                         _message!,
-                        style: const TextStyle(fontSize: 13),
+                        style: TextStyle(fontSize: 13, color: AppTheme.textPrimary(isDark)),
                       ),
                     ),
                   Form(
                     key: _formKey,
                     child: TextFormField(
                       controller: _emailController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Email',
+                        labelStyle: TextStyle(color: AppTheme.textSecondary(isDark)),
                       ),
                       keyboardType: TextInputType.emailAddress,
+                      style: TextStyle(color: AppTheme.textPrimary(isDark)),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Enter email';
@@ -96,13 +101,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ElevatedButton(
                     onPressed: _sending ? null : _submit,
                     child: _sending
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 18,
                             width: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
+                                AppTheme.surface(isDark),
                               ),
                             ),
                           )
@@ -117,4 +122,3 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 }
-

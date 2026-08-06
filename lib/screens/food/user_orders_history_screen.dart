@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../models/food_models.dart';
 import '../../services/food_service.dart';
 import '../../models/app_user.dart';
+import '../../theme/app_theme.dart';
 
 class UserOrdersHistoryScreen extends StatelessWidget {
   final AppUser currentUser;
@@ -13,23 +14,22 @@ class UserOrdersHistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final foodSvc = FoodService();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         title: Text(
           'My Food Orders',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 24, color: isDark ? Colors.white : const Color(0xFF1E293B)),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 24, color: AppTheme.textPrimary(isDark)),
         ),
       ),
       body: StreamBuilder<List<FoodOrder>>(
         stream: foodSvc.getUserOrders(currentUser.id),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF7C3AED)));
+            return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
           }
           final orders = snapshot.data ?? [];
           if (orders.isEmpty) {
@@ -37,11 +37,11 @@ class UserOrdersHistoryScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  FaIcon(FontAwesomeIcons.bowlFood, size: 64, color: Colors.grey.withOpacity(0.2)),
+                  FaIcon(FontAwesomeIcons.bowlFood, size: 64, color: AppTheme.textSecondary(isDark).withOpacity(0.2)),
                   const SizedBox(height: 16),
-                  Text('No orders yet', style: GoogleFonts.outfit(color: Colors.grey, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('No orders yet', style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark), fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  Text('Your delicious meals will show up here!', style: GoogleFonts.outfit(color: Colors.grey.withOpacity(0.6), fontSize: 14)),
+                  Text('Your delicious meals will show up here!', style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark).withOpacity(0.6), fontSize: 14)),
                 ],
               ),
             );
@@ -67,12 +67,12 @@ class _HistoryOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _getStatusColor(order.status);
-    
+    final statusColor = _getStatusColor();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: AppTheme.surface(isDark),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: statusColor.withOpacity(0.2), width: 1.5),
         boxShadow: [
@@ -98,7 +98,7 @@ class _HistoryOrderCard extends StatelessWidget {
                       Text(order.shopName, style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 16)),
                       Text(
                         'Order #${order.dailyOrderNumber ?? '---'} · ${_formatDate(order.createdAt)}',
-                        style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                        style: GoogleFonts.outfit(fontSize: 11, color: AppTheme.textSecondary(isDark), fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -122,7 +122,7 @@ class _HistoryOrderCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
                   children: [
-                    Text('${item.quantity}x', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: const Color(0xFF7C3AED), fontSize: 13)),
+                    Text('${item.quantity}x', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: AppTheme.primary, fontSize: 13)),
                     const SizedBox(width: 8),
                     Expanded(child: Text(item.name, style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600))),
                     Text('₹${item.price * item.quantity}', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold)),
@@ -137,7 +137,7 @@ class _HistoryOrderCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('TOTAL PAID', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
+                Text('TOTAL PAID', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.textSecondary(isDark))),
                 Text('₹${order.totalAmount}', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w900, color: statusColor)),
               ],
             ),
@@ -147,9 +147,9 @@ class _HistoryOrderCard extends StatelessWidget {
     );
   }
 
-  Color _getStatusColor(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.new_order: return const Color(0xFF7C3AED);
+  Color _getStatusColor() {
+    switch (order.status) {
+      case OrderStatus.new_order: return AppTheme.primary;
       case OrderStatus.confirmed: return Colors.orange;
       case OrderStatus.delivered: return Colors.green;
       case OrderStatus.cancelled: return Colors.red;

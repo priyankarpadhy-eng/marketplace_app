@@ -4,19 +4,19 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/food_models.dart';
 import '../../services/food_service.dart';
 import '../../models/app_user.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import 'package:slide_to_act/slide_to_act.dart';
 
-class RestaurantOrdersPage extends StatefulWidget {
+class RestaurantOrdersPage extends ConsumerStatefulWidget {
   final AppUser currentUser;
   const RestaurantOrdersPage({super.key, required this.currentUser});
 
   @override
-  State<RestaurantOrdersPage> createState() => _RestaurantOrdersPageState();
+  ConsumerState<RestaurantOrdersPage> createState() => _RestaurantOrdersPageState();
 }
 
-class _RestaurantOrdersPageState extends State<RestaurantOrdersPage> with SingleTickerProviderStateMixin {
+class _RestaurantOrdersPageState extends ConsumerState<RestaurantOrdersPage> with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
   final FoodService _foodSvc = FoodService();
   late Stream<List<FoodOrder>> _ordersStream;
@@ -28,7 +28,7 @@ class _RestaurantOrdersPageState extends State<RestaurantOrdersPage> with Single
   void initState() {
     super.initState();
     _ordersStream = _foodSvc.getShopOrders(widget.currentUser.id);
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -56,7 +56,7 @@ class _RestaurantOrdersPageState extends State<RestaurantOrdersPage> with Single
           IconButton(
             icon: Icon(isDark ? LucideIcons.sun : LucideIcons.moon),
             onPressed: () {
-              Provider.of<ThemeProvider>(context, listen: false).toggleTheme(!isDark);
+              ref.read(themeProvider.notifier).toggleTheme(!isDark);
             },
           ),
           const SizedBox(width: 8),
@@ -99,18 +99,20 @@ class _RestaurantOrdersPageState extends State<RestaurantOrdersPage> with Single
                 }).toList();
                 
                 final newOrders = filteredOrders.where((o) => o.status == OrderStatus.new_order).toList();
-                final confirmedOrders = filteredOrders.where((o) => o.status == OrderStatus.confirmed).toList();
+                final kitchenOrders = filteredOrders.where((o) => o.status == OrderStatus.confirmed).toList();
+                final readyOrders = filteredOrders.where((o) => o.status == OrderStatus.ready_for_pickup).toList();
                 final deliveredOrders = filteredOrders.where((o) => o.status == OrderStatus.delivered).toList();
 
                 return Column(
                   children: [
-                    _buildTabBar(newOrders.length, confirmedOrders.length, deliveredOrders.length, isDark),
+                    _buildTabBar(newOrders.length, kitchenOrders.length, readyOrders.length, deliveredOrders.length, isDark),
                     Expanded(
                       child: TabBarView(
                         controller: _tabCtrl,
                         children: [
                           _OrderList(orders: newOrders, status: OrderStatus.new_order, isDark: isDark),
-                          _OrderList(orders: confirmedOrders, status: OrderStatus.confirmed, isDark: isDark),
+                          _OrderList(orders: kitchenOrders, status: OrderStatus.confirmed, isDark: isDark),
+                          _OrderList(orders: readyOrders, status: OrderStatus.ready_for_pickup, isDark: isDark),
                           _OrderList(orders: deliveredOrders, status: OrderStatus.delivered, isDark: isDark),
                         ],
                       ),
@@ -125,7 +127,7 @@ class _RestaurantOrdersPageState extends State<RestaurantOrdersPage> with Single
     );
   }
 
-  Widget _buildTabBar(int n, int c, int d, bool isDark) {
+  Widget _buildTabBar(int n, int k, int r, int d, bool isDark) {
     return Container(
       height: 48,
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -137,6 +139,7 @@ class _RestaurantOrdersPageState extends State<RestaurantOrdersPage> with Single
       child: TabBar(
         controller: _tabCtrl,
         dividerColor: Colors.transparent,
+        labelPadding: EdgeInsets.zero,
         indicator: BoxDecoration(
           color: isDark ? const Color(0xFF374151) : Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -175,12 +178,28 @@ class _RestaurantOrdersPageState extends State<RestaurantOrdersPage> with Single
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text('KITCHEN'),
-                if (c > 0) ...[
+                if (k > 0) ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(color: const Color(0xFFFBBC05).withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                    child: Text('$c', style: const TextStyle(color: Color(0xFFFBBC05), fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: Text('$k', style: const TextStyle(color: Color(0xFFFBBC05), fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ]
+              ],
+            ),
+          ),
+          Tab(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('READY'),
+                if (r > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: const Color(0xFFF57C00).withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+                    child: Text('$r', style: const TextStyle(color: Color(0xFFF57C00), fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ]
               ],
@@ -232,7 +251,8 @@ class _OrderListState extends State<_OrderList> with AutomaticKeepAliveClientMix
           children: [
             Icon(
               widget.status == OrderStatus.new_order ? LucideIcons.clipboardList : 
-              widget.status == OrderStatus.confirmed ? LucideIcons.chefHat : LucideIcons.checkCheck,
+              widget.status == OrderStatus.confirmed ? LucideIcons.chefHat : 
+              widget.status == OrderStatus.ready_for_pickup ? LucideIcons.packageOpen : LucideIcons.checkCheck,
               size: 40,
               color: Colors.grey.withOpacity(0.2),
             ),
@@ -415,10 +435,10 @@ class _OrderCard extends StatelessWidget {
                       },
                     ),
                   )
-                else if (order.status != OrderStatus.delivered)
+                else if (order.status == OrderStatus.confirmed)
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => foodSvc.updateOrderStatus(order.id, OrderStatus.delivered, order.customerId),
+                      onPressed: () => foodSvc.updateOrderStatus(order.id, OrderStatus.ready_for_pickup, order.customerId),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isDark ? const Color(0xFF374151) : Colors.black,
                         foregroundColor: Colors.white,
@@ -430,9 +450,31 @@ class _OrderCard extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('Ready'),
+                          Text('Mark Ready', style: TextStyle(fontWeight: FontWeight.bold)),
                           const SizedBox(width: 4),
                           const Icon(LucideIcons.arrowRight, size: 16),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (order.status == OrderStatus.ready_for_pickup)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => foodSvc.updateOrderStatus(order.id, OrderStatus.delivered, order.customerId),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF34A853),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                        minimumSize: const Size(0, 48),
+                        elevation: 0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('Mark Delivered', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 4),
+                          const Icon(LucideIcons.check, size: 16),
                         ],
                       ),
                     ),
@@ -449,6 +491,7 @@ class _OrderCard extends StatelessWidget {
     switch (status) {
       case OrderStatus.new_order: return 'NEW';
       case OrderStatus.confirmed: return 'KITCHEN';
+      case OrderStatus.ready_for_pickup: return 'READY';
       case OrderStatus.delivered: return 'DONE';
       default: return 'UNKNOWN';
     }
@@ -458,6 +501,7 @@ class _OrderCard extends StatelessWidget {
     switch (status) {
       case OrderStatus.new_order: return const Color(0xFF4285F4);
       case OrderStatus.confirmed: return const Color(0xFFFBBC05);
+      case OrderStatus.ready_for_pickup: return const Color(0xFFF57C00);
       case OrderStatus.delivered: return const Color(0xFF34A853);
       default: return Colors.grey;
     }

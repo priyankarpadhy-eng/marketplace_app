@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -16,14 +16,14 @@ import '../../services/bike_rental_service.dart';
 import '../list_product_screen.dart';
 import '../add_bike_screen.dart';
 
-class ShopConsoleScreen extends StatefulWidget {
+class ShopConsoleScreen extends ConsumerStatefulWidget {
   const ShopConsoleScreen({super.key});
 
   @override
-  State<ShopConsoleScreen> createState() => _ShopConsoleScreenState();
+  ConsumerState<ShopConsoleScreen> createState() => _ShopConsoleScreenState();
 }
 
-class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTickerProviderStateMixin {
+class _ShopConsoleScreenState extends ConsumerState<ShopConsoleScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final MarketplaceService _marketService = MarketplaceService();
   final BikeRentalService _bikeService = BikeRentalService();
@@ -42,25 +42,23 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
-    final user = Provider.of<UserProvider>(context).currentUser;
+    final user = ref.watch(userProvider).currentUser;
     if (user == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-    final textColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-        foregroundColor: textColor,
+        backgroundColor: AppTheme.surface(isDark),
+        foregroundColor: AppTheme.textPrimary(isDark),
         elevation: 0,
         title: Text("My Listings & Requests", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.orange,
           labelColor: Colors.orange,
-          unselectedLabelColor: isDark ? Colors.white60 : Colors.grey,
+          unselectedLabelColor: AppTheme.textSecondary(isDark),
           labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15),
           tabs: const [
             Tab(text: "Listings"),
@@ -162,7 +160,7 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
   Widget _buildMarketplaceItemTile(MarketplaceItem item, bool isDark) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      color: AppTheme.surface(isDark),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Container(
@@ -180,7 +178,7 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
             if (val == 'delete') {
               _marketService.deleteListing(item.id);
             } else if (val == 'edit') {
-              final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+              final user = ref.read(userProvider).currentUser;
               if (user != null) {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => ListProductScreen(currentUser: user, editItem: item)));
               }
@@ -203,7 +201,7 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
   Widget _buildBikeItemTile(BikeListing bike, bool isDark) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      color: AppTheme.surface(isDark),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Container(
@@ -221,7 +219,7 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
             if (val == 'delete') {
               _bikeService.deleteBike(bike.id);
             } else if (val == 'edit') {
-              final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+              final user = ref.read(userProvider).currentUser;
               if (user != null) {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => AddBikeScreen(currentUser: user, editBike: bike)));
               }
@@ -269,9 +267,9 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+        color: AppTheme.surfaceAlt(isDark),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+        border: Border.all(color: AppTheme.border(isDark)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,8 +282,8 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
             ],
           ),
           const SizedBox(height: 8),
-          Text("Renter: ${request.renterName}", style: GoogleFonts.outfit(color: Colors.grey)),
-          Text("Duration: ${request.durationHours} hrs", style: GoogleFonts.outfit(color: Colors.grey)),
+          Text("Renter: ${request.renterName}", style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark))),
+          Text("Duration: ${request.durationHours} hrs", style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark))),
           Text("Amount: ₹${request.totalAmount.toStringAsFixed(2)}", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.orange)),
           const SizedBox(height: 16),
           Row(
@@ -331,7 +329,7 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          color: AppTheme.surface(isDark),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
         ),
@@ -344,9 +342,9 @@ class _ShopConsoleScreenState extends State<ShopConsoleScreen> with SingleTicker
               child: FaIcon(icon, color: color, size: 20),
             ),
             const SizedBox(height: 12),
-            Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black)),
+            Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark))),
             const SizedBox(height: 4),
-            Text(sub, style: const TextStyle(color: Colors.grey, fontSize: 10), textAlign: TextAlign.center),
+            Text(sub, style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 10), textAlign: TextAlign.center),
           ],
         ),
       ),

@@ -19,11 +19,10 @@ class AppUser {
   final List<String> shopTags; // ['rental', 'marketplace', etc.]
   final List<String> shopImages;
 
-  bool get isAdmin => role == 'admin' || role == 'founder';
-  bool get isFounder => role == 'founder';
-  bool get isShop => role == 'shop' || role == 'restaurant';
-  bool get isRestaurant => role == 'restaurant';
-  bool get isGuest => role == 'guest';
+  bool get isAdmin => role.trim().toLowerCase() == 'admin' || role.trim().toLowerCase() == 'founder';
+  bool get isFounder => role.trim().toLowerCase() == 'founder';
+  bool get isShop => role.trim().toLowerCase() == 'shop' || role.trim().toLowerCase() == 'restaurant';
+  bool get isRestaurant => role.trim().toLowerCase() == 'restaurant';
   bool get canRent => shopTags.contains('rental') || shopTags.isEmpty;
   bool get canSell => shopTags.contains('marketplace') || shopTags.isEmpty;
 
@@ -57,10 +56,10 @@ class AppUser {
       profileImage: (data['profile_image'] as String?) ?? (data['profileImage'] as String?) ?? (data['photoURL'] as String?),
       passoutYear: (data['passout_year'] as String?) ?? (data['passoutYear'] as String?) ?? (data['classYear'] as String?),
       branch: (data['branch'] as String?) ?? (data['major'] as String?),
-      role: (data['role'] as String?) ?? 'student',
+      role: (data['role'] as String?) ?? (data['Role'] as String?) ?? 'student',
       gender: (data['gender'] as String?) ?? 'other',
-      phoneNumber: (data['phone_number'] as String?) ?? (data['phoneNumber'] as String?) ?? '',
-      phoneVerified: (data['phone_verified'] as bool?) ?? (data['phoneVerified'] as bool?) ?? false,
+      phoneNumber: ((data['phone_number'] as String?)?.isNotEmpty == true ? data['phone_number'] as String : null) ?? (data['phoneNumber'] as String?) ?? '',
+      phoneVerified: (data['phone_verified'] == true) || (data['phoneVerified'] == true),
       shopName: data['shop_name'] as String?,
       shopAddress: data['shop_address'] as String?,
       shopSellerName: data['shop_seller_name'] as String?,

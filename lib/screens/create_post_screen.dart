@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -10,6 +11,7 @@ import '../models/app_user.dart';
 import '../models/post.dart';
 import '../services/feed_service.dart';
 import '../services/storage_service.dart';
+import '../services/github_storage_service.dart';
 import '../theme/app_theme.dart';
 import '../services/permission_service.dart';
 
@@ -31,78 +33,51 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final StorageService _storageService = StorageService();
   final ImagePicker _picker = ImagePicker();
   
-  File? _selectedImage;
+  List<File> _selectedImages = [];
   File? _selectedVideo;
   String _selectedTag = 'Discussion';
   bool _isPosting = false;
+  double _uploadProgress = 0.0;
 
   late final List<String> _tags;
 
   @override
   void initState() {
     super.initState();
-    // Restriction: Guest users can only post using the "Confession" tag.
-    final bool isGuest = widget.currentUser.id.isEmpty || widget.currentUser.role == 'guest';
-    
-    if (isGuest) {
-      _tags = ['Confession'];
-      _selectedTag = 'Confession';
-    } else {
-      _tags = ['Discussion', 'Freelancing', 'Confession', 'Poetic', 'Help', 'Truth', 'Spill', 'Real', 'Opinion'];
-      _selectedTag = 'Discussion';
-    }
+    _tags = ['Discussion', 'Freelancing', 'Confession', 'Poetic', 'Help', 'Truth', 'Spill', 'Real', 'Opinion'];
+    _selectedTag = 'Discussion';
   }
 
   Future<void> _pickImage() async {
     final granted = await PermissionService.requestGalleryPermission(context);
     if (!granted) return;
 
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
-    if (image == null) return;
+    final List<XFile> images = await _picker.pickMultiImage(imageQuality: 90);
+    if (images.isEmpty) return;
 
-    final File imageFile = File(image.path);
-    final int sizeInBytes = await imageFile.length();
-    if (sizeInBytes > 50 * 1024 * 1024) {
-      if (mounted) {
+    List<File> validImages = [];
+    for (var img in images) {
+      final File imageFile = File(img.path);
+      final int sizeInBytes = await imageFile.length();
+      if (sizeInBytes <= 50 * 1024 * 1024) {
+        validImages.add(imageFile);
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Image size exceeds 50MB limit')),
+          SnackBar(content: Text('Image ${img.name} exceeds 50MB limit')),
         );
       }
-      return;
     }
 
-    final CroppedFile? croppedFile = await ImageCropper().cropImage(
-      sourcePath: image.path,
-      uiSettings: [
-        AndroidUiSettings(
-            toolbarTitle: 'Edit Image',
-            toolbarColor: AppTheme.primary,
-            toolbarWidgetColor: Colors.black,
-            initAspectRatio: CropAspectRatioPreset.original,
-            lockAspectRatio: false,
-            aspectRatioPresets: [
-              CropAspectRatioPreset.square,
-              CropAspectRatioPreset.ratio3x2,
-              CropAspectRatioPreset.original,
-              CropAspectRatioPreset.ratio4x3,
-              CropAspectRatioPreset.ratio16x9
-            ]),
-        IOSUiSettings(
-          title: 'Edit Image',
-          aspectRatioPresets: [
-            CropAspectRatioPreset.square,
-            CropAspectRatioPreset.ratio3x2,
-            CropAspectRatioPreset.original,
-            CropAspectRatioPreset.ratio4x3,
-            CropAspectRatioPreset.ratio16x9
-          ],
-        ),
-      ],
-    );
-
-    if (croppedFile != null) {
+    if (validImages.isNotEmpty) {
       setState(() {
-        _selectedImage = File(croppedFile.path);
+        _selectedImages.addAll(validImages);
+        // Cap at 10 images max
+        if (_selectedImages.length > 10) {
+          _selectedImages = _selectedImages.sublist(0, 10);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Maximum 10 images allowed')),
+          );
+        }
         _selectedVideo = null;
       });
     }
@@ -128,23 +103,35 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     setState(() {
       _selectedVideo = videoFile;
-      _selectedImage = null;
+      _selectedImages.clear();
     });
   }
 
   Future<void> _handlePost() async {
-    if (_contentController.text.trim().isEmpty && _selectedImage == null) return;
+    if (_contentController.text.trim().isEmpty && _selectedImages.isEmpty && _selectedVideo == null) return;
 
-    setState(() => _isPosting = true);
+    setState(() {
+      _isPosting = true;
+      _uploadProgress = 0.0;
+    });
 
     try {
-      String? imageUrl;
+      List<String> imageUrls = [];
       String? videoUrl;
       
-      if (_selectedImage != null) {
-        imageUrl = await _storageService.uploadFile(_selectedImage!, folder: 'posts');
+      if (_selectedImages.isNotEmpty) {
+        for (int i = 0; i < _selectedImages.length; i++) {
+          String url = await _storageService.uploadFile(_selectedImages[i], folder: 'posts');
+          imageUrls.add(url);
+          setState(() {
+            _uploadProgress = (i + 1) / _selectedImages.length;
+          });
+        }
       } else if (_selectedVideo != null) {
         videoUrl = await _storageService.uploadFile(_selectedVideo!, folder: 'posts/videos');
+        setState(() {
+          _uploadProgress = 1.0;
+        });
       }
 
       final post = Post(
@@ -156,7 +143,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         authorAvatar: _selectedTag == 'Confession' ? null : widget.currentUser.profileImage,
         createdAt: DateTime.now(),
         tag: _selectedTag.toLowerCase(),
-        image: imageUrl,
+        image: imageUrls.isNotEmpty ? imageUrls.first : null,
+        images: imageUrls.isNotEmpty ? imageUrls : null,
         video: videoUrl,
         budget: _selectedTag == 'Freelancing' ? _budgetController.text.trim() : null,
         contact: _selectedTag == 'Freelancing' ? _contactController.text.trim() : null,
@@ -171,7 +159,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isPosting = false);
+      if (mounted) {
+        setState(() {
+          _isPosting = false;
+          _uploadProgress = 0.0;
+        });
+      }
     }
   }
 
@@ -198,21 +191,41 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         title: Text("Create Post", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
             child: ElevatedButton(
               onPressed: _isPosting ? null : _handlePost,
               style: ElevatedButton.styleFrom(
                 backgroundColor: activeColor,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 elevation: 0,
               ),
               child: _isPosting 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text("Post Vibe", style: TextStyle(fontWeight: FontWeight.bold)),
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                      if (_uploadProgress > 0) ...[
+                        const SizedBox(width: 8),
+                        Text("${(_uploadProgress * 100).toInt()}%", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ]
+                    ],
+                  )
+                : const Text("Post", style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
+        bottom: _isPosting && _uploadProgress > 0
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(4),
+                child: LinearProgressIndicator(
+                  value: _uploadProgress,
+                  backgroundColor: Colors.transparent,
+                  color: activeColor,
+                ),
+              )
+            : null,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -259,7 +272,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               minLines: 4,
               style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w500),
               decoration: InputDecoration(
-                hintText: _selectedTag == 'Confession' ? "Write your heartfelt confession..." : "What's the vibe?",
+                hintText: _selectedTag == 'Confession' 
+                    ? "Write your heartfelt confession..." 
+                    : "What's the vibe?",
                 hintStyle: GoogleFonts.outfit(color: Colors.grey.withOpacity(0.5)),
                 border: InputBorder.none,
               ),
@@ -284,29 +299,48 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                ),
                const SizedBox(height: 16),
             ],
-            
-            // Image Preview
-            if (_selectedImage != null)
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Image.file(_selectedImage!, width: double.infinity, height: 300, fit: BoxFit.cover),
-                  ),
-                  Positioned(
-                    right: 12,
-                    top: 12,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedImage = null),
-                      child: CircleAvatar(
-                        backgroundColor: Colors.black.withOpacity(0.6),
-                        child: const Icon(Icons.close, color: Colors.white, size: 20),
+
+            // Previews
+            if (_selectedImages.isNotEmpty) ...[
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _selectedImages.length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.file(_selectedImages[index], width: 120, height: 120, fit: BoxFit.cover),
+                          ),
+                          Positioned(
+                            right: 4,
+                            top: 4,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedImages.removeAt(index);
+                                });
+                              },
+                              child: CircleAvatar(
+                                radius: 12,
+                                backgroundColor: Colors.black.withOpacity(0.6),
+                                child: const Icon(Icons.close, color: Colors.white, size: 14),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                ],
-              )
-            else if (_selectedVideo != null)
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (_selectedVideo != null) ...[
               Stack(
                 children: [
                    Container(
@@ -334,8 +368,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     child: Text(p.basename(_selectedVideo!.path), style: const TextStyle(color: Colors.grey, fontSize: 10)),
                   )
                 ],
-              )
-            else if (_selectedTag != 'Poetic' && _selectedTag != 'Confession')
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Add Media Buttons
+            if (_selectedTag != 'Poetic' && _selectedTag != 'Confession' && _selectedImages.length < 10 && _selectedVideo == null)
               _buildAddMediaRow(),
               
             const SizedBox(height: 100), // Spacing
@@ -345,7 +382,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     );
   }
 
-  Widget _buildExtraField(TextEditingController controller, String hint, IconData icon) {
+  Widget _buildExtraField(TextEditingController controller, String hint, IconData icon, {Color color = Colors.green}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -356,7 +393,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       child: TextField(
         controller: controller,
         decoration: InputDecoration(
-          icon: Icon(icon, size: 16, color: Colors.green),
+          icon: Icon(icon, size: 16, color: color),
           hintText: hint,
           hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
           border: InputBorder.none,
@@ -375,7 +412,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     );
   }
 
-  Widget _buildMediaAction(IconData icon, String label, VoidCallback onTap) {
+  Widget _buildMediaAction(IconData icon, String label, VoidCallback onTap, {Color? iconColor}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(24),
@@ -387,7 +424,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ),
         child: Column(
           children: [
-            Icon(icon, size: 28, color: Colors.grey.withOpacity(0.5)),
+            Icon(icon, size: 28, color: iconColor ?? Colors.grey.withOpacity(0.5)),
             const SizedBox(height: 4),
             Text(label, style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
           ],

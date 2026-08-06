@@ -15,7 +15,7 @@ class MarketplaceService {
   // ── SharedPreferences keys ────────────────────────────────────────
   static const _spCacheKey     = 'mkt_items_v2';
   static const _spRefreshPrefix = 'mkt_refresh_';
-  static const int maxDailyRefreshes = 5;
+  static const int maxDailyRefreshes = 10;
 
   bool get hasCache => _cachedItems.isNotEmpty;
 
@@ -67,6 +67,8 @@ class MarketplaceService {
           'status':       item.status,
           'createdAt':    item.createdAt.toIso8601String(),
           'statusUpdatedAt': item.statusUpdatedAt?.toIso8601String(),
+          'broadcasted':  item.broadcasted,
+          'broadcastedAt': item.broadcastedAt?.toIso8601String(),
         };
         return m;
       }).toList();
@@ -121,13 +123,13 @@ class MarketplaceService {
       try {
         final snap = await _db
             .collection('listings')
-            .orderBy('createdAt', descending: true)
             .limit(100)
             .get(const GetOptions(source: Source.cache));
         if (snap.docs.isNotEmpty) {
           _cachedItems = snap.docs
               .map((d) => MarketplaceItem.fromFirestore(d))
               .toList();
+          _sortByCreatedAt(_cachedItems);
           _fetchInBackground();
           await _persistToLocal(_cachedItems);
           return _filter(_cachedItems, category, searchQuery);
@@ -145,7 +147,6 @@ class MarketplaceService {
     try {
       final snap = await _db
           .collection('listings')
-          .orderBy('createdAt', descending: true)
           .limit(100)
           .get(const GetOptions(source: Source.serverAndCache));
       final now = DateTime.now();
@@ -160,6 +161,7 @@ class MarketplaceService {
         }
         return item;
       }).whereType<MarketplaceItem>().toList();
+      _sortByCreatedAt(_cachedItems);
       _lastFetchTime = DateTime.now();
       await _persistToLocal(_cachedItems);
     } catch (e) {
@@ -196,7 +198,6 @@ class MarketplaceService {
   }) {
     return _db
         .collection('listings')
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
       final now = DateTime.now();
@@ -211,16 +212,22 @@ class MarketplaceService {
         }
         items.add(item);
       }
+      _sortByCreatedAt(items);
       _cachedItems = _filter(items, 'All', '');
       _persistToLocal(_cachedItems);
       return _filter(items, category, searchQuery);
     });
   }
 
+  void _sortByCreatedAt(List<MarketplaceItem> items) {
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
   // ── CRUD ──────────────────────────────────────────────────────────
   Future<void> createListing(MarketplaceItem item) async {
+    final docRef = await _db.collection('listings').add(item.toMap());
+    _cachedItems.clear();
     try {
-      final docRef = await _db.collection('listings').add(item.toMap());
       await NotificationService.instance.broadcastNotification(
         title: 'New Listing: ${item.title} 🛍️',
         body:
@@ -230,9 +237,8 @@ class MarketplaceService {
         image: item.image.isNotEmpty ? item.image : null,
       );
     } catch (e) {
-      print('createListing failed: $e');
+      print('Broadcast notification failed: $e');
     }
-    _cachedItems.clear();
   }
 
   Future<void> deleteListing(String id) async {

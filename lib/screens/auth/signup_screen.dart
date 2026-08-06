@@ -72,11 +72,11 @@ class _SignupScreenState extends State<SignupScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       appBar: AppBar(
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary(isDark), size: 20),
         ),
       ),
       body: SafeArea(
@@ -93,16 +93,16 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 Text(
                   "Join the community",
-                  style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey),
+                  style: GoogleFonts.outfit(fontSize: 16, color: AppTheme.textSecondary(isDark)),
                 ),
                 const SizedBox(height: 32),
 
                 Container(
                   padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    color: AppTheme.surface(isDark),
                     borderRadius: BorderRadius.circular(32),
-                    border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+                    border: Border.all(color: AppTheme.border(isDark)),
                   ),
                   child: Form(
                     key: _formKey,
@@ -112,8 +112,8 @@ class _SignupScreenState extends State<SignupScreen> {
                            Container(
                             padding: const EdgeInsets.all(12),
                             margin: const EdgeInsets.only(bottom: 20),
-                            decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                            child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                            decoration: BoxDecoration(color: AppTheme.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                            child: Text(_error!, style: TextStyle(color: AppTheme.error, fontSize: 13)),
                           ),
                         
                         _buildField(
@@ -177,13 +177,13 @@ class _SignupScreenState extends State<SignupScreen> {
                             onPressed: _loading ? null : _submit,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.primary,
-                              foregroundColor: Colors.black,
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 18),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               elevation: 0,
                             ),
                             child: _loading 
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                               : Text("CREATE ACCOUNT", style: GoogleFonts.outfit(fontWeight: FontWeight.w900)),
                           ),
                         ),
@@ -222,9 +222,9 @@ class _SignupScreenState extends State<SignupScreen> {
         prefixIcon: Icon(icon, size: 18, color: AppTheme.primary),
         suffixIcon: isPass ? IconButton(onPressed: onToggle, icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18)) : null,
         filled: true,
-        fillColor: isDark ? Colors.black.withOpacity(0.2) : Colors.grey.withOpacity(0.05),
+        fillColor: AppTheme.surfaceAlt(isDark),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-        labelStyle: GoogleFonts.outfit(color: Colors.grey, fontSize: 13),
+        labelStyle: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark), fontSize: 13),
       ),
     );
   }

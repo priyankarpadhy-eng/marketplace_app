@@ -33,7 +33,7 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> with SingleTi
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.darkBg : const Color(0xFFF8F9FA),
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       appBar: AppBar(
         title: Text("Shop Dashboard", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         bottom: TabBar(
@@ -89,9 +89,9 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> with SingleTi
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+        color: AppTheme.surfaceAlt(isDark),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+        border: Border.all(color: AppTheme.border(isDark)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,8 +104,8 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> with SingleTi
             ],
           ),
           const SizedBox(height: 8),
-          Text("Renter: ${request.renterName}", style: GoogleFonts.outfit(color: Colors.grey)),
-          Text("Duration: ${request.durationHours} hrs", style: GoogleFonts.outfit(color: Colors.grey)),
+          Text("Renter: ${request.renterName}", style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark))),
+          Text("Duration: ${request.durationHours} hrs", style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark))),
           Text("Amount: ₹${request.totalAmount.toStringAsFixed(2)}", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.orange)),
           const SizedBox(height: 16),
           Row(
@@ -179,7 +179,7 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> with SingleTi
                     contentPadding: const EdgeInsets.symmetric(vertical: 8),
                     leading: Container(
                       width: 60, height: 60,
-                      decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: AppTheme.surfaceAlt(isDark), borderRadius: BorderRadius.circular(12)),
                       child: bike.images.isNotEmpty ? CachedNetworkImage(imageUrl: bike.images.first) : const Icon(Icons.motorcycle),
                     ),
                     title: Text(bike.title, style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),

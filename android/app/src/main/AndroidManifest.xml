@@ -15,11 +15,16 @@
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
 
     <application
         android:label="Marketplace"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:usesCleartextTraffic="true">
         
         <!-- FCM Background metadata -->
@@ -28,8 +33,8 @@
             android:value="high_importance_channel" />
         
         <!-- Universal Meta-data keys for Truecaller compatibility -->
-        <meta-data android:name="com.truecaller.android.sdk.ClientId" android:value="gxuvmgdae-wy2ba0avvacclykzyrxen74u5jjzipe2k"/>
-        <meta-data android:name="com.truecaller.android.sdk.PartnerKey" android:value="gxuvmgdae-wy2ba0avvacclykzyrxen74u5jjzipe2k"/>
+        <meta-data android:name="com.truecaller.android.sdk.ClientId" android:value="@string/clientID"/>
+        <meta-data android:name="com.truecaller.android.sdk.PartnerKey" android:value="@string/clientID"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -72,6 +77,22 @@
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
+            
+        <service
+            android:name="com.ryanheise.audioservice.AudioService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+        <receiver
+            android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

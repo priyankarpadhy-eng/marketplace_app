@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/marketplace_item.dart';
 import '../theme/app_theme.dart';
 import '../providers/user_provider.dart';
@@ -13,14 +13,14 @@ import 'list_product_screen.dart';
 const _kPrimary = Color(0xFF7C3AED);
 const _kGreen   = Color(0xFF25D366);
 
-class ListingDetailScreen extends StatelessWidget {
+class ListingDetailScreen extends ConsumerWidget {
   final MarketplaceItem item;
   const ListingDetailScreen({super.key, required this.item});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currentUser = Provider.of<UserProvider>(context).currentUser;
+    final currentUser = ref.watch(userProvider).currentUser;
     final isOwner = currentUser != null && currentUser.id == item.sellerId;
     final images = item.images.isNotEmpty ? item.images : [item.image];
 
@@ -308,14 +308,9 @@ class _SellerCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? Colors.white.withOpacity(0.07) : _kPrimary.withOpacity(0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black26 : Colors.black.withOpacity(0.05),
-            blurRadius: 12, offset: const Offset(0, 4)),
-        ],
       ),
       child: Row(children: [
         // Avatar
@@ -348,7 +343,7 @@ class _SellerCard extends StatelessWidget {
               const Icon(Icons.verified_rounded, size: 13, color: Color(0xFF3B82F6)),
               const SizedBox(width: 4),
               Flexible(
-                child: Text('Verified Campus Seller',
+                child: Text('Verified Campus Seller • Number Verified',
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF3B82F6))),
               ),
@@ -573,7 +568,8 @@ class _ActionBar extends StatelessWidget {
           : Row(children: [
               Expanded(child: _BarBtn(
                 label: 'Call Seller',
-                color: _kPrimary,
+                color: isDark ? Colors.white : const Color(0xFF1A1A2E),
+                contentColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
                 icon: Icons.phone_rounded,
                 onTap: _call,
               )),
@@ -593,31 +589,31 @@ class _ActionBar extends StatelessWidget {
 class _BarBtn extends StatelessWidget {
   final String    label;
   final Color     color;
+  final Color?    contentColor;
   final dynamic   icon;
   final bool      isFa;
   final VoidCallback onTap;
-  const _BarBtn({required this.label, required this.color, required this.icon,
+  const _BarBtn({required this.label, required this.color, this.contentColor, required this.icon,
     this.isFa = false, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final cColor = contentColor ?? Colors.white;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.35),
-            blurRadius: 12, offset: const Offset(0, 4))],
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           isFa
-              ? FaIcon(icon as IconData, color: Colors.white, size: 18)
-              : Icon(icon as IconData, color: Colors.white, size: 18),
+              ? FaIcon(icon as IconData, color: cColor, size: 18)
+              : Icon(icon as IconData, color: cColor, size: 18),
           const SizedBox(width: 8),
           Text(label, style: GoogleFonts.poppins(
-            color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+            color: cColor, fontWeight: FontWeight.w700, fontSize: 13)),
         ]),
       ),
     );

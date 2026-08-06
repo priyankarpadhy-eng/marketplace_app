@@ -1,12 +1,19 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import 'package:truecaller_sdk/truecaller_sdk.dart';
 
 import '../models/app_user.dart';
 
 class AuthService {
-  AuthService._();
+  AuthService._() {
+    initializeTruecaller();
+  }
 
   static final instance = AuthService._();
 
@@ -16,7 +23,20 @@ class AuthService {
     serverClientId: '754932193228-47a6q2tnvuk52dh2p0cd834qe27594me.apps.googleusercontent.com',
   );
 
-  Stream<User?> authStateChanges() => _auth.authStateChanges();
+  void initializeTruecaller() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        TcSdk.initializeSDK(sdkOption: TcSdkOptions.OPTION_VERIFY_ONLY_TC_USERS);
+        debugPrint('Truecaller SDK Initialized successfully');
+      } catch (e) {
+        debugPrint('Failed to initialize Truecaller SDK: $e');
+      }
+    }
+  }
+
+  Stream<User?> authStateChanges() {
+    return _auth.authStateChanges();
+  }
 
   User? get currentFirebaseUser => _auth.currentUser;
 
@@ -25,31 +45,23 @@ class AuthService {
     final user = _auth.currentUser;
     if (user == null) return null;
     
-    if (user.isAnonymous) {
-      return AppUser(
-        id: user.uid,
-        name: 'Guest User',
-        email: 'guest@example.com',
-        nickname: 'guest',
-        role: 'guest',
-        gender: 'other',
-        phoneNumber: '',
-        phoneVerified: false,
-      );
-    }
-
     try {
       final doc = await _db.collection('users').doc(user.uid).get();
 
       if (doc.exists) {
-        return AppUser.fromMap(doc.id, doc.data()!);
+        final data = doc.data()!;
+        var role = data['role']?.toString() ?? 'founder';
+        if (role == 'user' || role == 'student') {
+          role = 'founder';
+          await _db.collection('users').doc(user.uid).update({'role': 'founder'});
+        }
+        return AppUser.fromMap(doc.id, {
+          ...data,
+          'role': role,
+          'phone_verified': true,
+        });
       } else {
-        // Fallback/Create if not found
-        await _createUserProfile(
-          user: user,
-          nickname: user.displayName ?? 'User_${user.uid.substring(0, 5)}',
-        );
-        return getCurrentAppUser();
+        return null;
       }
     } catch (e) {
       debugPrint('Error fetching user from Firestore: $e');
@@ -67,8 +79,10 @@ class AuthService {
     try {
       final existingDoc = await _db.collection('users').doc(user.uid).get();
       if (existingDoc.exists) {
-        // Just update some basic info like profile image or name if they changed, but NOT the role
         await _db.collection('users').doc(user.uid).update({
+          'name': user.displayName ?? existingDoc.data()?['name'] ?? nickname,
+          'nickname': nickname.toLowerCase().replaceAll(' ', '_'),
+          'email': user.email,
           'profile_image': user.photoURL,
           'updated_at': DateTime.now().toIso8601String(),
         });
@@ -161,15 +175,6 @@ class AuthService {
     }
   }
 
-  Future<void> signInAnonymously() async {
-    try {
-      await _auth.signInAnonymously();
-    } catch (e) {
-      debugPrint('Anonymous Sign-In Error: $e');
-      throw Exception('Failed to sign in as guest: $e');
-    }
-  }
-
   Future<void> signOut() async {
     // Clear FCM token before signing out to prevent receiving notifications for the old account on this device
     final user = _auth.currentUser;
@@ -186,8 +191,6 @@ class AuthService {
   }
 
   Future<void> updateUserProfile(AppUser user) async {
-    if (user.role == 'guest') return;
-    
     // 1. Update Firestore
     try {
       await _db.collection('users').doc(user.id).update(user.toMap());
@@ -196,6 +199,87 @@ class AuthService {
       await _syncUserListings(user);
     } catch (e) {
       debugPrint('Firestore profile update failed: $e');
+    }
+  }
+
+  Future<void> verifyTruecaller({
+    required String authorizationCode,
+    required String codeVerifier,
+  }) async {
+    try {
+      debugPrint('==== TRUECALLER: Exchanging Authorization Code ====');
+      
+      // 1. Exchange authorization code for access token
+      final tokenResponse = await http.post(
+        Uri.parse('https://oauth-account-noneu.truecaller.com/v1/token'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'grant_type': 'authorization_code',
+          'client_id': dotenv.env['TRUECALLER_CLIENT_ID'] ?? '_vzn6lro7sbnwgvgqtgkx3lyg2uv_l6ryfd-6qdnhwm',
+          'code': authorizationCode,
+          'code_verifier': codeVerifier,
+        },
+      );
+      
+      debugPrint('TRUECALLER TOKEN RESPONSE [${tokenResponse.statusCode}]: ${tokenResponse.body}');
+      
+      if (tokenResponse.statusCode != 200) {
+        throw Exception('Failed to exchange Truecaller token. Status: ${tokenResponse.statusCode}, Body: ${tokenResponse.body}');
+      }
+      
+      final tokenData = jsonDecode(tokenResponse.body);
+      final accessToken = tokenData['access_token'];
+      if (accessToken == null) {
+        throw Exception('Access token not found in Truecaller response');
+      }
+      
+      // 2. Fetch User Profile
+      final profileResponse = await http.get(
+        Uri.parse('https://oauth-account-noneu.truecaller.com/v1/userinfo'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+      
+      debugPrint('TRUECALLER PROFILE RESPONSE [${profileResponse.statusCode}]: ${profileResponse.body}');
+      
+      if (profileResponse.statusCode != 200) {
+        throw Exception('Failed to fetch Truecaller profile. Status: ${profileResponse.statusCode}, Body: ${profileResponse.body}');
+      }
+      
+      final profileData = jsonDecode(profileResponse.body);
+      final rawPhoneNumber = profileData['phone_number'] as String?;
+      if (rawPhoneNumber == null || rawPhoneNumber.isEmpty) {
+        throw Exception('Phone number not found in Truecaller profile');
+      }
+      
+      // Standardize phone number format (e.g. ensure starting with +)
+      var phoneNumber = rawPhoneNumber;
+      if (!phoneNumber.startsWith('+')) {
+        phoneNumber = '+$phoneNumber';
+      }
+      
+      debugPrint('TRUECALLER: Verified phone number is $phoneNumber');
+      
+      // 3. Update Firestore document
+      final user = _auth.currentUser;
+      if (user != null) {
+        try {
+          await _db.collection('users').doc(user.uid).update({
+            'phone_number': phoneNumber,
+            'phone_verified': true,
+          });
+        } catch (e) {
+          debugPrint('[FIRESTORE ERROR] Failed to update user doc. Attempting set...: $e');
+          await _db.collection('users').doc(user.uid).set({
+            'phone_number': phoneNumber,
+            'phone_verified': true,
+          }, SetOptions(merge: true));
+        }
+      }
+    } catch (e) {
+      debugPrint('[TRUECALLER ERROR] verifyTruecaller failed: $e');
+      rethrow;
     }
   }
 

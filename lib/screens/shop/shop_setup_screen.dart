@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/app_user.dart';
 import '../../providers/user_provider.dart';
@@ -13,14 +13,14 @@ import '../../services/auth_service.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_theme.dart';
 
-class ShopSetupScreen extends StatefulWidget {
+class ShopSetupScreen extends ConsumerStatefulWidget {
   const ShopSetupScreen({super.key});
 
   @override
-  State<ShopSetupScreen> createState() => _ShopSetupScreenState();
+  ConsumerState<ShopSetupScreen> createState() => _ShopSetupScreenState();
 }
 
-class _ShopSetupScreenState extends State<ShopSetupScreen> {
+class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -40,7 +40,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
   @override
   void initState() {
     super.initState();
-    final user = context.read<UserProvider>().currentUser;
+    final user = ref.read(userProvider).currentUser;
     if (user != null) {
       _nameController.text = user.shopName ?? '';
       _phoneController.text = user.phoneNumber;
@@ -69,8 +69,8 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final userProvider = context.read<UserProvider>();
-      final currentUser = userProvider.currentUser!;
+      final userState = ref.read(userProvider);
+      final currentUser = userState.currentUser!;
       
       // Upload images
       for (var file in _localImages) {
@@ -90,7 +90,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
       );
 
       await AuthService.instance.updateUserProfile(updatedUser);
-      await userProvider.refreshUser();
+      await ref.read(userProvider.notifier).refreshUser();
       
       // Also create separate verification collection linked to user
       await FirebaseFirestore.instance.collection('shop_verifications').doc(currentUser.id).set({
@@ -122,8 +122,8 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final userProvider = context.watch<UserProvider>();
-    final user = userProvider.currentUser;
+    final userState = ref.watch(userProvider);
+    final user = userState.currentUser;
 
     if (user == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
@@ -133,13 +133,13 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
     }
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       appBar: AppBar(
         title: Text("Shop Verification", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: isDark ? Colors.white : Colors.black),
+          icon: Icon(Icons.arrow_back_ios_new, color: AppTheme.textPrimary(isDark)),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -161,7 +161,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
                 validator: (v) => v!.isEmpty ? "Enter shop name" : null,
               ),
               const SizedBox(height: 16),
-              
+
               _buildTextField(
                 controller: _phoneController,
                 label: "Business Phone Number",
@@ -171,7 +171,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
                 validator: (v) => v!.isEmpty ? "Enter phone number" : null,
               ),
               const SizedBox(height: 16),
-              
+
               _buildTextField(
                 controller: _addressController,
                 label: "Shop Address / Location",
@@ -187,12 +187,12 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
               
               Text(
                 "Shop Images",
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark)),
               ),
               const SizedBox(height: 8),
               Text(
                 "Upload clear photos of your shop or items you sell",
-                style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey),
+                style: GoogleFonts.outfit(fontSize: 12, color: AppTheme.textSecondary(isDark)),
               ),
               const SizedBox(height: 16),
               
@@ -224,14 +224,14 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          "Setup your shop profile",
-          style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF1E1B4B)),
-        ),
-        Text(
-          "Verify your details to gain access to the Seller Console",
-          style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey),
-        ),
+          Text(
+            "Setup your shop profile",
+            style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, color: AppTheme.textPrimary(isDark)),
+          ),
+          Text(
+            "Verify your details to gain access to the Seller Console",
+            style: GoogleFonts.outfit(fontSize: 14, color: AppTheme.textSecondary(isDark)),
+          ),
       ],
     );
   }
@@ -250,14 +250,14 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
       maxLines: maxLines,
       keyboardType: keyboardType,
       validator: validator,
-      style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black),
+      style: GoogleFonts.outfit(color: AppTheme.textPrimary(isDark)),
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: Colors.orange, size: 20),
         filled: true,
-        fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+        fillColor: isDark ? AppTheme.surfaceAlt(isDark) : AppTheme.surface(isDark),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-        labelStyle: GoogleFonts.outfit(color: Colors.grey),
+        labelStyle: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark)),
       ),
     );
   }
@@ -266,7 +266,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+        color: isDark ? AppTheme.surfaceAlt(isDark) : AppTheme.surface(isDark),
         borderRadius: BorderRadius.circular(20),
       ),
       child: DropdownButtonHideUnderline(
@@ -275,7 +275,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
           decoration: const InputDecoration(border: InputBorder.none),
           items: _categories.map((c) => DropdownMenuItem(
             value: c,
-            child: Text(c, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black)),
+            child: Text(c, style: GoogleFonts.outfit(color: AppTheme.textPrimary(isDark))),
           )).toList(),
           onChanged: (val) => setState(() => _selectedCategory = val!),
         ),
@@ -299,7 +299,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
             onTap: _pickImages,
             child: Container(
               decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[200],
+                color: AppTheme.surfaceAlt(isDark),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.orange.withOpacity(0.3), style: BorderStyle.solid),
               ),
@@ -348,7 +348,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
 
   Widget _buildPendingUI(bool isDark) {
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(40),
@@ -366,13 +366,13 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
               const SizedBox(height: 32),
               Text(
                 "Request Sent!",
-                style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black87),
+                style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w900, color: AppTheme.textPrimary(isDark)),
               ),
               const SizedBox(height: 12),
               Text(
                 "Your shop verification is currently pending approval from the Founder. You'll be notified once approved.",
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(color: Colors.grey, height: 1.5),
+                style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark), height: 1.5),
               ),
               const SizedBox(height: 48),
               SizedBox(

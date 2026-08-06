@@ -68,7 +68,9 @@ class FeedService {
   Future<void> createPost(Post post) async {
     final docRef = await _db.collection('posts').add(post.toMap());
     
-    // Broadcast notification
+    // Broadcast notification unless it's a music post or contains multiple images (for testing)
+    if (post.tag.toLowerCase() == 'music' || (post.images != null && post.images!.length > 1)) return;
+
     try {
       await NotificationService.instance.broadcastNotification(
         title: 'New Post! 📢',

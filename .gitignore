@@ -43,5 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
+/brace_counter.dart
+/packages/
 .env
 node_modules/
+google-services.json
+service-account.json

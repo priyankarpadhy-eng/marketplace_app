@@ -6,6 +6,8 @@ import '../models/chat.dart';
 import '../services/chat_service.dart';
 import '../models/app_user.dart';
 import 'private_chat_screen.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_loader.dart';
 
 class ConversationsScreen extends StatefulWidget {
   final AppUser currentUser;
@@ -21,8 +23,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD),
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       appBar: AppBar(
         title: Text("Messages", style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold)),
         actions: [
@@ -33,7 +36,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         stream: _chatService.watchConversations(widget.currentUser.id),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoader();
           }
           final convs = snapshot.data ?? [];
           if (convs.isEmpty) {
@@ -74,18 +77,19 @@ class _ConversationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+          border: Border(bottom: BorderSide(color: AppTheme.border(isDark))),
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: const Color(0xFF6A5AE0),
+              backgroundColor: AppTheme.primary,
               child: Text(
                 conversation.name.isNotEmpty ? conversation.name[0].toUpperCase() : "?",
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -105,7 +109,7 @@ class _ConversationItem extends StatelessWidget {
                       ),
                       Text(
                         DateFormat('hh:mm a').format(conversation.lastTime),
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 12),
                       ),
                     ],
                   ),
@@ -114,7 +118,7 @@ class _ConversationItem extends StatelessWidget {
                     conversation.lastMessage,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 14),
                   ),
                 ],
               ),

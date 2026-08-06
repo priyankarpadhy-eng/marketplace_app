@@ -9,11 +9,12 @@ import '../../providers/user_provider.dart';
 import '../../services/feed_service.dart';
 import '../comment_sheet.dart';
 import '../../models/app_user.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../expandable_text.dart';
 import '../cached_video_player.dart';
+import 'multi_image_carousel.dart';
 
-class StandardCard extends StatelessWidget {
+class StandardCard extends ConsumerWidget {
   final Post post;
   final String currentUserId;
 
@@ -33,10 +34,10 @@ class StandardCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final userProvider = Provider.of<UserProvider>(context);
-    final user = userProvider.currentUser;
+    final userState = ref.watch(userProvider);
+    final user = userState.currentUser;
     final feedService = FeedService();
     final isLiked = post.likedBy.contains(currentUserId);
     final isOwn = post.authorId == currentUserId;
@@ -155,30 +156,8 @@ class StandardCard extends StatelessWidget {
           ),
 
           // ── Media ────────────────────────────────────────────
-          if (post.image != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CachedNetworkImage(
-                  imageUrl: post.image!,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
-                    height: 200,
-                    color: AppTheme.surfaceAlt(isDark),
-                  ),
-                  errorWidget: (_, __, ___) => Container(
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Center(child: Icon(Icons.broken_image_outlined, color: Colors.red)),
-                  ),
-                ),
-              ),
-            ),
+          if (post.images != null && post.images!.isNotEmpty)
+            MultiImageCarousel(imageUrls: post.images!),
 
           if (post.video != null)
             Padding(

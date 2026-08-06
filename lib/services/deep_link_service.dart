@@ -10,7 +10,7 @@ import '../screens/ride_detail_screen.dart';
 import '../models/app_user.dart';
 import '../services/ride_service.dart';
 import '../providers/user_provider.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import '../widgets/ride_share_card.dart';
 
@@ -21,19 +21,19 @@ class DeepLinkService {
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
 
-  void init(BuildContext context) {
+  void init(BuildContext context, WidgetRef ref) {
     _appLinks = AppLinks();
 
     // Check initial link if app was closed
     _appLinks.getInitialLink().then((uri) {
       if (uri != null) {
-        _handleDeepLink(context, uri);
+        _handleDeepLink(context, uri, ref);
       }
     });
 
     // Listen for links while app is in foreground/background
     _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
-      _handleDeepLink(context, uri);
+      _handleDeepLink(context, uri, ref);
     });
   }
 
@@ -41,25 +41,25 @@ class DeepLinkService {
     _linkSubscription?.cancel();
   }
 
-  void _handleDeepLink(BuildContext context, Uri uri) async {
+  void _handleDeepLink(BuildContext context, Uri uri, WidgetRef ref) async {
     print('Received deep link: $uri');
     
     // Format: marketapp://ride/{id} or https://igitmarketplace.vercel.app/ride/{id}
     if (uri.pathSegments.contains('ride')) {
       final rideId = uri.pathSegments.last;
-      _navigateToRide(context, rideId);
+      _navigateToRide(context, rideId, ref);
     } else if (uri.queryParameters.containsKey('rideId')) {
       final rideId = uri.queryParameters['rideId']!;
-      _navigateToRide(context, rideId);
+      _navigateToRide(context, rideId, ref);
     }
   }
 
-  Future<void> _navigateToRide(BuildContext context, String rideId) async {
+  Future<void> _navigateToRide(BuildContext context, String rideId, WidgetRef ref) async {
     try {
       final rideService = RideService();
       final ride = await rideService.getRideById(rideId);
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final currentUser = userProvider.currentUser;
+      final userState = ref.read(userProvider);
+      final currentUser = userState.currentUser;
 
       if (ride != null && currentUser != null && context.mounted) {
         Navigator.of(context).push(

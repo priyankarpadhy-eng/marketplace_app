@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/chat.dart';
 import '../services/chat_service.dart';
 import '../models/app_user.dart';
+import '../theme/app_theme.dart';
 
 class PrivateChatScreen extends StatefulWidget {
   final String conversationId;
@@ -52,6 +53,7 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -92,25 +94,25 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
               },
             ),
           ),
-          _buildInput(),
+          _buildInput(isDark),
         ],
       ),
     );
   }
 
-  Widget _buildInput() {
+  Widget _buildInput(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surface(isDark),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4)),
+          BoxShadow(color: AppTheme.textPrimary(isDark).withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4)),
         ],
       ),
       child: SafeArea(
         child: Row(
           children: [
-            IconButton(onPressed: () {}, icon: const Icon(Icons.add_circle_outline, color: Color(0xFF6A5AE0))),
+            IconButton(onPressed: () {}, icon: const Icon(Icons.add_circle_outline, color: AppTheme.primary)),
             Expanded(
               child: TextField(
                 controller: _messageController,
@@ -121,14 +123,14 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: Colors.grey[100],
+                  fillColor: AppTheme.surfaceAlt(isDark),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             CircleAvatar(
-              backgroundColor: const Color(0xFF6A5AE0),
+              backgroundColor: AppTheme.primary,
               child: IconButton(
                 onPressed: _handleSend,
                 icon: const Icon(Icons.send, color: Colors.white, size: 18),
@@ -148,6 +150,7 @@ class _ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Align(
       alignment: message.isOwn ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
@@ -158,7 +161,7 @@ class _ChatBubble extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
             decoration: BoxDecoration(
-              color: message.isOwn ? const Color(0xFF6A5AE0) : Colors.grey[200],
+              color: message.isOwn ? AppTheme.primary : AppTheme.surfaceAlt(isDark),
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(16),
                 topRight: const Radius.circular(16),
@@ -168,14 +171,14 @@ class _ChatBubble extends StatelessWidget {
             ),
             child: Text(
               message.content,
-              style: TextStyle(color: message.isOwn ? Colors.white : Colors.black87),
+              style: TextStyle(color: message.isOwn ? Colors.white : AppTheme.textPrimary(isDark)),
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               DateFormat('hh:mm a').format(message.sentAt),
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
+              style: TextStyle(fontSize: 10, color: AppTheme.textSecondary(isDark)),
             ),
           ),
         ],

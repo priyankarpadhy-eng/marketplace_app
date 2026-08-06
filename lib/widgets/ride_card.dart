@@ -339,48 +339,71 @@ class _RideCardState extends State<RideCard> with SingleTickerProviderStateMixin
       ),
       child: Row(
         children: [
-          // Timeline column
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 10, height: 10,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: effectiveDot)),
-              Container(width: 1.5, height: 20,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [effectiveDot, effectiveDot.withOpacity(0.2)],
-                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  ),
-                )),
-              Container(width: 8, height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: effectiveDot, width: 2),
-                )),
-            ],
-          ),
-          const SizedBox(width: 12),
           // From / To text
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.ride.from,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
-                    fontSize: 13, fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary(isDark),
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: effectiveDot.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'FROM',
+                        style: GoogleFonts.outfit(
+                          fontSize: 9, fontWeight: FontWeight.w800,
+                          color: effectiveDot,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.ride.from,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14, fontWeight: FontWeight.w600,
+                          color: AppTheme.textSecondary(isDark),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.ride.to,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
-                    fontSize: 16, fontWeight: FontWeight.w900,
-                    color: isCompleted ? AppTheme.textPrimary(isDark) : textOnBg,
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: effectiveDot.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'TO',
+                        style: GoogleFonts.outfit(
+                          fontSize: 9, fontWeight: FontWeight.w800,
+                          color: effectiveDot,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.ride.to,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          fontSize: 16, fontWeight: FontWeight.w900,
+                          color: isCompleted ? AppTheme.textPrimary(isDark) : textOnBg,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

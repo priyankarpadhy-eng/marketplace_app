@@ -8,20 +8,20 @@ import '../../providers/user_provider.dart';
 import '../../services/feed_service.dart';
 import '../comment_sheet.dart';
 import '../../models/app_user.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../expandable_text.dart';
 
-class PoeticCard extends StatefulWidget {
+class PoeticCard extends ConsumerStatefulWidget {
   final Post post;
   final String currentUserId;
 
   const PoeticCard({super.key, required this.post, required this.currentUserId});
 
   @override
-  State<PoeticCard> createState() => _PoeticCardState();
+  ConsumerState<PoeticCard> createState() => _PoeticCardState();
 }
 
-class _PoeticCardState extends State<PoeticCard> with SingleTickerProviderStateMixin {
+class _PoeticCardState extends ConsumerState<PoeticCard> with SingleTickerProviderStateMixin {
   double _x = 0, _y = 0;
   late AnimationController _controller;
   late Animation<Offset> _animation;
@@ -252,7 +252,8 @@ class _PoeticCardState extends State<PoeticCard> with SingleTickerProviderStateM
                           FontAwesomeIcons.comment, 
                           "${widget.post.commentsCount}",
                           onTap: () {
-                            final user = Provider.of<UserProvider>(context, listen: false).currentUser;
+                            final userState = ref.read(userProvider);
+                            final user = userState.currentUser;
                             if (user != null) _showComments(context, user);
                           },
                         ),

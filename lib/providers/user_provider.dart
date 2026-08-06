@@ -1,43 +1,33 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_user.dart';
 import '../services/notification_service.dart';
 
-class UserProvider extends ChangeNotifier {
-  AppUser? _currentUser;
-  bool _isLoading = true;
+class UserState {
+  final AppUser? currentUser;
+  final bool isLoading;
 
-  AppUser? get currentUser => _currentUser;
-  bool get isLoading => _isLoading;
+  UserState({this.currentUser, this.isLoading = true});
 
-  UserProvider() {
+  UserState copyWith({AppUser? currentUser, bool? isLoading}) {
+    return UserState(
+      currentUser: currentUser ?? this.currentUser,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
+}
+
+class UserNotifier extends Notifier<UserState> {
+  @override
+  UserState build() {
     _listenToAuthChanges();
+    return UserState(isLoading: true);
   }
 
   void _listenToAuthChanges() {
     FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      if (user == null) {
-        _currentUser = null;
-        _isLoading = false;
-        notifyListeners();
-      } else if (user.isAnonymous) {
-        _currentUser = AppUser(
-          id: user.uid,
-          name: 'Guest User',
-          email: 'guest@example.com',
-          nickname: 'guest',
-          role: 'guest',
-          gender: 'other',
-          phoneNumber: '',
-          phoneVerified: false,
-        );
-        _isLoading = false;
-        notifyListeners();
-        
-        // Sync push token for guest
-        NotificationService.instance.setupPushNotifications(user.uid);
-      } else {
+      if (user != null) {
         _listenToUserProfile(user.uid);
         
         // Sync push token for authenticated user
@@ -54,21 +44,26 @@ class UserProvider extends ChangeNotifier {
         .listen((doc) {
       if (doc.exists) {
         final data = doc.data()!;
-        if (data['role'] == 'user') {
-          // Auto-upgrade legacy role to pass Firestore rules
-          FirebaseFirestore.instance.collection('users').doc(uid).update({'role': 'student'});
+        var role = data['role']?.toString() ?? 'founder';
+        if (role == 'user' || role == 'student') {
+          role = 'founder';
+          FirebaseFirestore.instance.collection('users').doc(uid).update({'role': 'founder'});
         }
-        _currentUser = AppUser.fromMap(doc.id, data);
+        state = UserState(
+          currentUser: AppUser.fromMap(doc.id, {
+            ...data,
+            'role': role,
+            'phone_verified': true,
+          }),
+          isLoading: false,
+        );
       } else {
         // Handle missing profile - auto-create minimal profile from Firebase Auth info
         _createMinimalProfile(uid);
       }
-      _isLoading = false;
-      notifyListeners();
     }, onError: (error) {
       print("Error listening to user profile: $error");
-      _isLoading = false;
-      notifyListeners();
+      state = state.copyWith(isLoading: false);
     });
   }
 
@@ -78,29 +73,31 @@ class UserProvider extends ChangeNotifier {
 
     final docRef = FirebaseFirestore.instance.collection('users').doc(uid);
     
-    // Check again to avoid race conditions
     final doc = await docRef.get();
     if (doc.exists) return;
 
     await docRef.set({
-      'name': user.displayName ?? user.email?.split('@').first ?? 'User',
-      'nickname': user.displayName ?? user.email?.split('@').first ?? 'user',
-      'email': user.email,
+      'name': user.displayName ?? 'User',
+      'nickname': user.displayName?.toLowerCase().replaceAll(' ', '_') ?? 'user_${uid.substring(0, 5)}',
+      'email': user.email ?? '',
       'role': 'student',
       'gender': 'other',
-      'phoneNumber': user.phoneNumber ?? '',
-      'phoneVerified': false,
+      'phone_number': '',
+      'phone_verified': false,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   Future<void> refreshUser() async {
-    if (_currentUser == null) return;
-    final doc = await FirebaseFirestore.instance.collection('users').doc(_currentUser!.id).get();
+    if (state.currentUser == null) return;
+    final doc = await FirebaseFirestore.instance.collection('users').doc(state.currentUser!.id).get();
     if (doc.exists) {
-      _currentUser = AppUser.fromMap(doc.id, doc.data()!);
-      notifyListeners();
+      state = state.copyWith(currentUser: AppUser.fromMap(doc.id, doc.data()!));
     }
   }
 }
+
+final userProvider = NotifierProvider<UserNotifier, UserState>(() {
+  return UserNotifier();
+});

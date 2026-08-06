@@ -6,13 +6,12 @@ import '../services/ride_service.dart';
 import '../services/auth_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/ride_card.dart';
-import 'ride_chat_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/deep_link_service.dart';
 import 'package:share_plus/share_plus.dart';
-import '../widgets/guest_login_sheet.dart';
 import 'package:slide_to_act/slide_to_act.dart' as slide_to_act;
+import '../theme/app_theme.dart';
 
 class RideDetailScreen extends StatelessWidget {
   final Ride ride;
@@ -31,19 +30,20 @@ class RideDetailScreen extends StatelessWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF9FAFB),
+      backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text('${ride.from} → ${ride.to}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black, fontSize: 18)),
-        iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
+        scrolledUnderElevation: 0,
+        title: Text('${ride.from} → ${ride.to}', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary, fontSize: 18)),
+        iconTheme: IconThemeData(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share_outlined),
+            icon: Icon(Icons.share_outlined, color: AppTheme.rideAccent),
             onPressed: () => DeepLinkService.shareRide(ride),
             tooltip: 'Share Ride',
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
@@ -68,8 +68,11 @@ class RideDetailScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     const SizedBox(height: 8),
-                    RideCard(ride: ride, onTap: null),
-                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: RideCard(ride: ride, onTap: null),
+                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -77,23 +80,43 @@ class RideDetailScreen extends StatelessWidget {
               // 2. Participants Header
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.rideAccent.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(Icons.people_rounded, size: 16, color: AppTheme.rideAccent),
+                      ),
+                      const SizedBox(width: 10),
                       Text(
                         'Participants',
                         style: GoogleFonts.outfit(
                           fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
                         ),
                       ),
-                      Text(
-                        '${docs.length}/${ride.totalSeats} seats',
-                        style: TextStyle(
-                          color: isDark ? Colors.white60 : Colors.grey.shade700,
-                          fontSize: 13,
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: docs.length >= ride.totalSeats ? AppTheme.success.withOpacity(0.1) : AppTheme.rideAccent.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: docs.length >= ride.totalSeats ? AppTheme.success.withOpacity(0.2) : AppTheme.rideAccent.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Text(
+                          '${docs.length}/${ride.totalSeats} seats',
+                          style: GoogleFonts.outfit(
+                            color: docs.length >= ride.totalSeats ? AppTheme.success : AppTheme.rideAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
@@ -105,22 +128,30 @@ class RideDetailScreen extends StatelessWidget {
               if (!canSeeContacts)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                        color: AppTheme.rideAccent.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.rideAccent.withOpacity(0.12)),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.privacy_tip_outlined, color: Colors.blue, size: 20),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.rideAccent.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.privacy_tip_outlined, color: AppTheme.rideAccent, size: 16),
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               "Contact details are hidden for privacy. Join this ride to coordinate with others.",
-                              style: GoogleFonts.outfit(fontSize: 12, color: isDark ? Colors.blue.shade200 : Colors.blue.shade900),
+                              style: GoogleFonts.outfit(fontSize: 12, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, height: 1.4),
                             ),
                           ),
                         ],
@@ -130,112 +161,157 @@ class RideDetailScreen extends StatelessWidget {
                 ),
 
               // 4. Participant List
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final data = docs[index];
-                    final name = (data['user_name'] as String?) ?? 'Student';
-                    final role = (data['role'] as String?) ?? 'participant';
-                    final isOrg = role == 'organizer';
-
-                    String userPhone = (data['user_phone'] as String?) ?? '';
-                    if (isOrg && userPhone.isEmpty) {
-                      userPhone = ride.organizerPhone;
-                    }
-                    final isMe = data['user_id'] == currentUser.id;
-                    final isPhoneVerified = (data['user_phone_verified'] as bool?) ?? false;
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.white.withOpacity(0.03) : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          leading: CircleAvatar(
-                            backgroundColor: isOrg ? Theme.of(context).colorScheme.primary : (isDark ? Colors.white12 : Colors.grey.shade100),
-                            child: Icon(isOrg ? Icons.star : Icons.person, color: isOrg ? Colors.white : (isDark ? Colors.white70 : Colors.black54), size: 18),
-                          ),
-                          title: Row(
-                            children: [
-                              Expanded(child: Text(name + (isMe ? ' (You)' : ''), style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14))),
-                              if (isPhoneVerified)
-                                const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified, color: Colors.blue, size: 16)),
-                            ],
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(isOrg ? 'Organizer' : 'Participant', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontSize: 11)),
-                              if (canSeeContacts)
-                                Text(userPhone.isNotEmpty ? userPhone : 'Phone not listed', style: TextStyle(color: userPhone.isNotEmpty ? (isOrg ? Theme.of(context).colorScheme.primary : (isDark ? Colors.blue.shade300 : Colors.blue.shade700)) : Colors.grey, fontWeight: FontWeight.w600, fontSize: 12)),
-                            ],
-                          ),
-                          trailing: (canSeeContacts && !isMe) ? Row(
-                            mainAxisSize: MainAxisSize.min, 
-                            children: [
-                              if (isOrganizer && !isOrg)
-                                IconButton(
-                                  icon: const Icon(Icons.person_remove_outlined, color: Colors.red, size: 20),
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Kick Participant?'),
-                                        content: Text('Are you sure you want to remove $name from the ride?'),
-                                        actions: [
-                                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                                          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Kick', style: TextStyle(color: Colors.red))),
-                                        ],
-                                      ),
-                                    ) ?? false;
-                                    if (confirm) {
-                                      try {
-                                        await service.kickParticipant(
-                                          rideId: ride.id,
-                                          userId: data['user_id'],
-                                          userName: name,
-                                        );
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$name removed.')));
-                                      } catch (e) {
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to kick: $e')));
-                                      }
-                                    }
-                                  },
-                                ),
-                              if (userPhone.isNotEmpty) ...[
-                                IconButton(
-                                  icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green, size: 20), 
-                                  onPressed: () async { 
-                                    final cleanPhone = userPhone.replaceAll(RegExp(r'\D'), ''); 
-                                    final url = "https://wa.me/91$cleanPhone"; 
-                                    if (await canLaunchUrl(Uri.parse(url))) { 
-                                      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); 
-                                    } 
-                                  }
-                                ), 
-                                IconButton(
-                                  icon: const Icon(Icons.phone_forwarded, color: Colors.blue, size: 20), 
-                                  onPressed: () async { 
-                                    final url = "tel:$userPhone"; 
-                                    if (await canLaunchUrl(Uri.parse(url))) { 
-                                      await launchUrl(Uri.parse(url)); 
-                                    } 
-                                  }
-                                )
-                              ] else if (!isOrganizer || isOrg)
-                                const Text("No number", style: TextStyle(color: Colors.grey, fontSize: 10))
-                            ]
-                          ) : null,
-                        ),
+              if (docs.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.people_outline_rounded, size: 40, color: isDark ? AppTheme.darkTextSecondary.withOpacity(0.3) : AppTheme.lightTextSecondary.withOpacity(0.3)),
+                          const SizedBox(height: 8),
+                          Text('No participants yet', style: GoogleFonts.outfit(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, fontSize: 14)),
+                        ],
                       ),
-                    );
-                  },
-                  childCount: docs.length,
+                    ),
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final data = docs[index];
+                      final name = (data['user_name'] as String?) ?? 'Student';
+                      final role = (data['role'] as String?) ?? 'participant';
+                      final isOrg = role == 'organizer';
+
+                      String userPhone = (data['user_phone'] as String?) ?? '';
+                      if (isOrg && userPhone.isEmpty) {
+                        userPhone = ride.organizerPhone;
+                      }
+                      final isMe = data['user_id'] == currentUser.id;
+                      final isPhoneVerified = (data['user_phone_verified'] as bool?) ?? false;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? AppTheme.darkSurface : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            leading: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isOrg ? AppTheme.rideAccent.withOpacity(0.1) : (isDark ? AppTheme.darkSurfaceAlt : AppTheme.lightSurfaceAlt),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(isOrg ? Icons.star_rounded : Icons.person_rounded, color: isOrg ? AppTheme.rideAccent : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary), size: 20),
+                            ),
+                            title: Row(
+                              children: [
+                                Flexible(child: Text(name + (isMe ? ' (You)' : ''), style: TextStyle(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary, fontWeight: FontWeight.w600, fontSize: 14))),
+                                if (isPhoneVerified)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 4),
+                                    child: Icon(Icons.verified, color: AppTheme.rideAccent, size: 16),
+                                  ),
+                              ],
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(isOrg ? 'Organizer' : 'Participant', style: TextStyle(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, fontSize: 11)),
+                                if (canSeeContacts && userPhone.isNotEmpty)
+                                  Text(userPhone, style: TextStyle(color: AppTheme.rideAccent, fontWeight: FontWeight.w600, fontSize: 12)),
+                              ],
+                            ),
+                            trailing: (canSeeContacts && !isMe) ? Row(
+                              mainAxisSize: MainAxisSize.min, 
+                              children: [
+                                if (isOrganizer && !isOrg)
+                                  IconButton(
+                                    icon: Icon(Icons.person_remove_outlined, color: AppTheme.error, size: 20),
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                          title: const Text('Kick Participant?'),
+                                          content: Text('Are you sure you want to remove $name from the ride?'),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Kick', style: TextStyle(color: Colors.red))),
+                                          ],
+                                        ),
+                                      ) ?? false;
+                                      if (confirm) {
+                                        try {
+                                          await service.kickParticipant(
+                                            rideId: ride.id,
+                                            userId: data['user_id'],
+                                            userName: name,
+                                          );
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$name removed.')));
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to kick: $e')));
+                                        }
+                                      }
+                                    },
+                                  ),
+                                if (userPhone.isNotEmpty) ...[
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF25D366).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: IconButton(
+                                      icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366), size: 18), 
+                                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () async { 
+                                        final cleanPhone = userPhone.replaceAll(RegExp(r'\D'), ''); 
+                                        final url = "https://wa.me/91$cleanPhone"; 
+                                        if (await canLaunchUrl(Uri.parse(url))) { 
+                                          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); 
+                                        } 
+                                      }
+                                    ), 
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.rideAccent.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: IconButton(
+                                      icon: Icon(Icons.phone_forwarded, color: AppTheme.rideAccent, size: 18), 
+                                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () async { 
+                                        final url = "tel:$userPhone"; 
+                                        if (await canLaunchUrl(Uri.parse(url))) { 
+                                          await launchUrl(Uri.parse(url)); 
+                                        } 
+                                      }
+                                    ),
+                                  ),
+                                ] else if (!isOrganizer || isOrg)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    child: Text("No number", style: TextStyle(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, fontSize: 10)),
+                                  )
+                              ]
+                            ) : null,
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: docs.length,
+                  ),
                 ),
-              ),
 
               // 5. Action Buttons & Safety Notice
               SliverFillRemaining(
@@ -256,35 +332,28 @@ class RideDetailScreen extends StatelessWidget {
                           participants: docs,
                           service: service,
                         ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: isInParticipantList
-                              ? () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          RideChatScreen(
-                                        ride: ride,
-                                        currentUser:
-                                            currentUser,
-                                      ),
-                                    ),
-                                  );
-                                }
-                              : null,
-                          icon: const Icon(Icons.chat_bubble),
-                          label: const Text('Open ride chat'),
-                        ),
                         const SizedBox(height: 24),
-                        Icon(Icons.auto_delete_outlined, size: 20, color: isDark ? Colors.white24 : Colors.grey.shade400),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Safety & Privacy: All ride coordination data and chat history are automatically purged 24 hours after departure to protect your privacy.",
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            color: isDark ? Colors.white24 : Colors.grey.shade400,
-                            height: 1.4,
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.3) : AppTheme.lightSurfaceAlt,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.auto_delete_outlined, size: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "All ride coordination data is automatically purged 24 hours after departure.",
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 11,
+                                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -323,85 +392,73 @@ class _PrimaryActions extends StatefulWidget {
 
 class _PrimaryActionsState extends State<_PrimaryActions> {
   bool _busy = false;
+  late bool _isEditingPhone;
+  late TextEditingController _phoneController;
+
+  @override
+  void initState() {
+    super.initState();
+    _isEditingPhone = widget.currentUser.phoneNumber.isEmpty || !widget.currentUser.phoneVerified;
+    _phoneController = TextEditingController(text: widget.currentUser.phoneNumber);
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    super.dispose();
+  }
 
   int get seatsTaken => widget.participants.length;
 
   bool get isFull => seatsTaken >= widget.ride.totalSeats;
 
-  Future<Map<String, dynamic>?> _showPhoneRequestDialog() async {
-    final phoneController = TextEditingController(text: widget.currentUser.phoneNumber);
-
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text("Confirm Contact Number", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Please confirm your phone number so fellow riders can contact you for the ride. You can update it here if needed."),
-            const SizedBox(height: 16),
-            TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: "Phone Number",
-                hintText: "Enter your 10-digit number",
-                prefixIcon: const Icon(Icons.phone),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              if (phoneController.text.trim().length == 10) {
-                Navigator.pop(context, phoneController.text.trim());
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 10-digit number')));
-              }
-            },
-            child: const Text("Save & Join", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (result != null) {
+  Future<bool> _savePhoneInline() async {
+    final text = _phoneController.text.trim();
+    if (text.length != 10) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 10-digit number')));
+      return false;
+    }
+    setState(() => _busy = true);
+    try {
       final updatedUser = widget.currentUser.copyWith(
-        phoneNumber: result,
-        phoneVerified: (result == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified),
+        phoneNumber: text,
+        phoneVerified: (text == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified),
       );
       await AuthService.instance.updateUserProfile(updatedUser);
-      return {
-        'phoneNumber': result,
-        'phoneVerified': updatedUser.phoneVerified,
-      };
+      setState(() {
+        _isEditingPhone = false;
+      });
+      return true;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save phone: $e')));
+      return false;
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    return null;
   }
 
   Future<void> _handleJoin() async {
-    if (widget.currentUser.isGuest) {
-      GuestLoginSheet.show(context);
-      return;
-    }
     // Guard: ride is in the past
     final isPast = widget.ride.departureTime.isBefore(DateTime.now());
     if (_busy || isFull || widget.ride.status != 'active' || isPast) return;
     
     // Every time: Verify phone number
-    final phoneData = await _showPhoneRequestDialog();
-    if (phoneData == null) return;
+    if (_isEditingPhone) {
+      final success = await _savePhoneInline();
+      if (!success) return;
+    }
+
+    final phone = _phoneController.text.trim();
+    if (phone.length != 10) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 10-digit number before joining.')));
+      return;
+    }
 
     setState(() => _busy = true);
     try {
       final updatedUser = widget.currentUser.copyWith(
-        phoneNumber: phoneData['phoneNumber'],
-        phoneVerified: phoneData['phoneVerified'],
+        phoneNumber: phone,
+        phoneVerified: (phone == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified),
       );
       await widget.service.joinRide(
         ride: widget.ride,
@@ -450,6 +507,7 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
     final confirm = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: const Text('Cancel ride?'),
             content: const Text(
               'This will cancel the ride for everyone.',
@@ -487,30 +545,6 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
     }
   }
 
-  Widget _buildSafetyNote() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blueAccent.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.info_outline, color: Colors.blueAccent, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              "Note: Your phone number will be visible to fellow riders for coordination. Always coordinate before the ride starts.",
-              style: GoogleFonts.outfit(fontSize: 12, color: Colors.blueAccent.shade700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -522,26 +556,21 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+          color: isDark ? AppTheme.darkSurface : AppTheme.lightSurfaceAlt,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? Colors.white12 : Colors.grey.shade300,
-          ),
+          border: Border.all(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.block_rounded,
-              size: 18,
-              color: isDark ? Colors.white38 : Colors.grey.shade400,
-            ),
+            Icon(Icons.block_rounded, size: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
             const SizedBox(width: 8),
             Text(
               'This ride has already departed',
               style: GoogleFonts.outfit(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white38 : Colors.grey.shade500,
+                color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
               ),
             ),
           ],
@@ -552,6 +581,10 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
     if (!rideActive) {
       return FilledButton(
         onPressed: null,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
         child: Text(
           widget.ride.status == 'cancelled'
               ? 'Ride cancelled'
@@ -564,7 +597,7 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
       return FilledButton(
         onPressed: _busy ? null : _handleCancel,
         style: FilledButton.styleFrom(
-          backgroundColor: Colors.redAccent,
+          backgroundColor: AppTheme.error,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
@@ -577,17 +610,10 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
                 width: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.white,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Text(
-                'Cancel ride',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            : const Text('Cancel ride', style: TextStyle(fontWeight: FontWeight.w600)),
       );
     }
 
@@ -595,12 +621,13 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
       return FilledButton(
         onPressed: _busy ? null : _handleLeave,
         style: FilledButton.styleFrom(
-          backgroundColor: Colors.grey.shade800,
-          foregroundColor: Colors.white,
+          backgroundColor: isDark ? AppTheme.darkSurfaceAlt : AppTheme.lightSurfaceAlt,
+          foregroundColor: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+          side: BorderSide(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
         ),
         child: _busy
             ? const SizedBox(
@@ -608,17 +635,10 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
                 width: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.white,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
                 ),
               )
-            : const Text(
-                'Leave ride',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            : const Text('Leave ride', style: TextStyle(fontWeight: FontWeight.w600)),
       );
     }
 
@@ -629,7 +649,36 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!widget.isParticipant && !isShop && rideActive && !rideFull) _buildSafetyNote(),
+        if (!widget.isParticipant && !isShop && rideActive && !rideFull)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.rideAccent.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.rideAccent.withOpacity(0.12)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.rideAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.info_outline, color: AppTheme.rideAccent, size: 16),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "Your phone number will be visible to fellow riders for coordination. Always coordinate before the ride starts.",
+                    style: GoogleFonts.outfit(fontSize: 12, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (_busy)
           const Center(child: CircularProgressIndicator())
         else if (rideFull || isShop)
@@ -647,25 +696,101 @@ class _PrimaryActionsState extends State<_PrimaryActions> {
             ),
           )
         else
-          SizedBox(
-            height: 50,
-            child: slide_to_act.SlideAction(
-              text: 'Slide to Join Ride',
-              textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, color: isDark ? Colors.white : Colors.white),
-              innerColor: isDark ? Colors.blue.shade400 : Colors.blue.shade600,
-              outerColor: isDark ? Colors.white.withOpacity(0.1) : Colors.blue.shade100,
-              sliderButtonIcon: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 24),
-              elevation: 0,
-              borderRadius: 16,
-              sliderButtonIconPadding: 8,
-              onSubmit: () async {
-                await _handleJoin();
-                return null;
-              },
-            ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.phone_rounded, size: 15, color: AppTheme.rideAccent),
+                  const SizedBox(width: 6),
+                  Text(
+                    'CONTACT NUMBER',
+                    style: GoogleFonts.outfit(
+                      color: AppTheme.rideAccent, 
+                      fontSize: 10, 
+                      fontWeight: FontWeight.w800, 
+                      letterSpacing: 1.2
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                margin: const EdgeInsets.only(bottom: 24),
+                child: TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  readOnly: !_isEditingPhone,
+                  style: GoogleFonts.outfit(
+                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary, 
+                    fontWeight: FontWeight.w600, 
+                    fontSize: 14
+                  ),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent.withOpacity(0.3), width: 1.5)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder, width: 1.5)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent, width: 2)),
+                    prefixIcon: Icon(Icons.phone_rounded, color: AppTheme.rideAccent, size: 20),
+                    suffixIcon: Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: TextButton(
+                        onPressed: () {
+                          if (_isEditingPhone) {
+                            _savePhoneInline();
+                          } else {
+                            setState(() {
+                              _isEditingPhone = true;
+                            });
+                          }
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          minimumSize: const Size(0, 36),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          backgroundColor: _isEditingPhone ? AppTheme.rideAccent : Colors.transparent,
+                        ),
+                        child: Text(
+                          _isEditingPhone ? 'Save' : 'Edit',
+                          style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w700, color: _isEditingPhone ? Colors.white : AppTheme.rideAccent),
+                        ),
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 60,
+                child: slide_to_act.SlideAction(
+                  text: 'SLIDE TO JOIN RIDE',
+                  textStyle: GoogleFonts.outfit(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: isDark ? AppTheme.darkTextSecondary.withOpacity(0.6) : AppTheme.lightTextSecondary.withOpacity(0.6),
+                    letterSpacing: 1.5,
+                  ),
+                  innerColor: AppTheme.rideAccent,
+                  outerColor: AppTheme.rideAccent.withOpacity(0.1),
+                  sliderButtonIcon: Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 22),
+                  elevation: 0,
+                  borderRadius: 16,
+                  sliderButtonIconPadding: 12,
+                  sliderRotate: false,
+                  submittedIcon: Icon(Icons.check_rounded, color: Colors.white, size: 24),
+                  onSubmit: () async {
+                    if (_busy) return null;
+                    await _handleJoin();
+                    return null;
+                  },
+                ),
+              ),
+            ],
           ),
       ],
     );
   }
 }
-

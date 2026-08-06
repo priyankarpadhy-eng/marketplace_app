@@ -52,11 +52,13 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
   ];
 
   bool _submitting = false;
+  late bool _isEditingPhone;
   final RideService _rideService = RideService();
 
   @override
   void initState() {
     super.initState();
+    _isEditingPhone = widget.currentUser.phoneNumber.isEmpty || !widget.currentUser.phoneVerified;
     _phoneController.text = widget.currentUser.phoneNumber;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showResponsibilityDialog();
@@ -72,7 +74,7 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
-            const Icon(Icons.info_outline_rounded, color: Colors.blueAccent),
+            Icon(Icons.info_outline_rounded, color: AppTheme.rideAccent),
             const SizedBox(width: 8),
             Text("Organizer Note", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
           ],
@@ -87,7 +89,7 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: AppTheme.rideAccent,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -116,8 +118,8 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.blueAccent,
+            colorScheme: ColorScheme.light(
+              primary: AppTheme.rideAccent,
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
@@ -134,8 +136,8 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.blueAccent,
+            colorScheme: ColorScheme.light(
+              primary: AppTheme.rideAccent,
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
@@ -157,67 +159,15 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
     });
   }
 
-  Future<Map<String, dynamic>?> _showPhoneRequestDialog() async {
-    final phoneController = TextEditingController(text: widget.currentUser.phoneNumber);
-    
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text("Confirm Contact Number", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Please confirm your phone number so fellow riders can contact you for the ride. You can update it here if needed."),
-            const SizedBox(height: 16),
-            TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: "Phone Number",
-                hintText: "Enter your 10-digit number",
-                prefixIcon: const Icon(Icons.phone),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              if (phoneController.text.trim().length == 10) {
-                Navigator.pop(context, phoneController.text.trim());
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 10-digit number')));
-              }
-            },
-            child: const Text("Save & Continue", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (result != null) {
-      final updatedUser = widget.currentUser.copyWith(
-        phoneNumber: result,
-        phoneVerified: (result == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified),
-      );
-      await AuthService.instance.updateUserProfile(updatedUser);
-      return {
-        'phoneNumber': result,
-        'phoneVerified': updatedUser.phoneVerified,
-      };
-    }
-    return null;
-  }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     
-    final phoneData = await _showPhoneRequestDialog();
-    if (phoneData == null) return; 
+    if (_isEditingPhone) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please save your phone number first')),
+      );
+      return;
+    }
 
     if (_departure == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -237,7 +187,10 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
     try {
       final updatedOrganizer = widget.currentUser.copyWith(
         phoneNumber: _phoneController.text.trim(),
+        phoneVerified: (_phoneController.text.trim() == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified),
       );
+      await AuthService.instance.updateUserProfile(updatedOrganizer);
+      
       final newRide = await _rideService.createRide(
         organizer: updatedOrganizer,
         from: _fromController.text.trim(),
@@ -276,19 +229,19 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
   }) {
     return DropdownButtonFormField<String>(
       value: controller.text.isEmpty ? null : controller.text,
-      dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-      icon: const Icon(Icons.arrow_drop_down, color: Colors.blueAccent),
-      style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 14),
+      dropdownColor: isDark ? AppTheme.darkSurface : Colors.white,
+      icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.rideAccent),
+      style: GoogleFonts.outfit(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary, fontWeight: FontWeight.w600, fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.outfit(color: isDark ? Colors.white60 : Colors.blue.shade900, fontWeight: FontWeight.w600, fontSize: 13),
+        labelStyle: GoogleFonts.outfit(color: isDark ? AppTheme.darkTextSecondary : AppTheme.rideAccent, fontWeight: FontWeight.w600, fontSize: 13),
         filled: true,
-        fillColor: isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.9),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.blueAccent.withOpacity(0.5), width: 1.5)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.blueAccent.withOpacity(0.5), width: 1.5)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.blueAccent, width: 2)),
-        prefixIcon: Icon(icon, color: isDark ? Colors.blue.shade300 : Colors.blue.shade700, size: 20),
-        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        fillColor: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent.withOpacity(0.3), width: 1.5)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder, width: 1.5)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent, width: 2)),
+        prefixIcon: Icon(icon, color: AppTheme.rideAccent, size: 20),
+        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         isDense: true,
       ),
       items: options.map((String option) {
@@ -310,351 +263,375 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? AppTheme.darkBg : AppTheme.lightBg;
+    final surfaceColor = isDark ? AppTheme.darkSurface : Colors.white;
+    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
     
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        toolbarHeight: 50,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         title: Text(
           'Host a Ride', 
           style: GoogleFonts.outfit(
-            fontWeight: FontWeight.w900, 
-            color: Colors.white, 
+            fontWeight: FontWeight.w700, 
+            color: textPrimary,
             fontSize: 20,
-            letterSpacing: 0.5,
           )
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: IconThemeData(color: textPrimary),
       ),
-      body: Container(
-        height: MediaQuery.of(context).size.height,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark 
-              ? [const Color(0xFF0F172A), const Color(0xFF1E3A8A), const Color(0xFF0F172A)]
-              : [const Color(0xFF2563EB), const Color(0xFF3B82F6), const Color(0xFF60A5FA)],
-          ),
-        ),
-        child: SafeArea(
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                children: [
-                  // Main Form Card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.2),
-                        width: 1.5,
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        child: Column(
+          children: [
+            // Main Form
+            Form(
+              key: _formKey,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: surfaceColor,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Route Section
+                    _buildSectionHeader('ROUTE', Icons.route_rounded, isDark),
+                    const SizedBox(height: 12),
+                    _buildTextField(
+                      controller: _fromController,
+                      label: 'Pickup Location',
+                      icon: Icons.my_location,
+                      isDark: isDark,
+                      options: _allPlaces,
+                    ),
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 2,
+                            height: 20,
+                            color: AppTheme.rideAccent.withOpacity(0.3),
+                          ),
+                          const SizedBox(width: 12),
+                          GestureDetector(
+                            onTap: () {
+                              if (_fromController.text.isNotEmpty || _toController.text.isNotEmpty) {
+                                setState(() {
+                                  final temp = _fromController.text;
+                                  _fromController.text = _toController.text;
+                                  _toController.text = temp;
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppTheme.rideAccent.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.swap_vert_rounded, color: AppTheme.rideAccent, size: 18),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Locations
-                        _buildTextField(
-                          controller: _fromController,
-                          label: 'Pickup Location',
-                          icon: Icons.my_location,
-                          isDark: isDark,
-                          options: _allPlaces,
-                        ),
-                        
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 2,
-                                height: 16,
-                                color: Colors.blue.withOpacity(0.3),
-                              ),
-                              const SizedBox(width: 12),
-                              GestureDetector(
-                                onTap: () {
-                                  if (_fromController.text.isNotEmpty || _toController.text.isNotEmpty) {
-                                    setState(() {
-                                      final temp = _fromController.text;
-                                      _fromController.text = _toController.text;
-                                      _toController.text = temp;
-                                    });
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blueAccent.withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(Icons.swap_vert_rounded, color: Colors.blue.shade500, size: 20),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
 
-                        _buildTextField(
-                          controller: _toController,
-                          label: 'Drop-off Location',
-                          icon: Icons.location_on,
-                          isDark: isDark,
-                          options: _allPlaces,
-                        ),
+                    _buildTextField(
+                      controller: _toController,
+                      label: 'Drop-off Location',
+                      icon: Icons.location_on,
+                      isDark: isDark,
+                      options: _allPlaces,
+                    ),
 
-                        const SizedBox(height: 16),
-                        
-                        // Departure Time
-                        Text(
-                          'DEPARTURE',
-                          style: GoogleFonts.outfit(
-                            color: isDark ? Colors.blue.shade300 : Colors.blue.shade700, 
-                            fontSize: 10, 
-                            fontWeight: FontWeight.w900, 
-                            letterSpacing: 1.5
-                          ),
+                    const SizedBox(height: 24),
+                    
+                    // Departure Time
+                    _buildSectionHeader('DEPARTURE', Icons.schedule_rounded, isDark),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: _pickDeparture,
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
                         ),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: _pickDeparture,
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white.withOpacity(0.08) : Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: isDark ? Colors.transparent : Colors.blue.shade100),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blueAccent.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(Icons.calendar_month_rounded, color: Colors.blueAccent, size: 20),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _departure == null ? 'Select Date & Time' : DateFormat('EEEE, MMM dd').format(_departure!),
-                                        style: GoogleFonts.outfit(
-                                          fontWeight: FontWeight.bold, 
-                                          fontSize: 14,
-                                          color: isDark ? Colors.white : Colors.black87,
-                                        ),
-                                      ),
-                                      if (_departure != null)
-                                        Text(
-                                          DateFormat('hh:mm a').format(_departure!),
-                                          style: GoogleFonts.outfit(
-                                            color: isDark ? Colors.white70 : Colors.blue.shade700,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(Icons.chevron_right, color: isDark ? Colors.white54 : Colors.black54, size: 20),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Gender Preference
-                        Text(
-                          'GENDER PREFERENCE',
-                          style: GoogleFonts.outfit(
-                            color: isDark ? Colors.blue.shade300 : Colors.blue.shade700, 
-                            fontSize: 10, 
-                            fontWeight: FontWeight.w900, 
-                            letterSpacing: 1.5
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
+                        child: Row(
                           children: [
-                            _buildGenderChip('Mixed', 'mixed', Icons.group_rounded, isDark),
-                            const SizedBox(width: 8),
-                            _buildGenderChip('Female', 'female', Icons.female_rounded, isDark),
-                            const SizedBox(width: 8),
-                            _buildGenderChip('Male', 'male', Icons.male_rounded, isDark),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Seats
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'AVAILABLE SEATS',
-                                  style: GoogleFonts.outfit(
-                                    color: isDark ? Colors.blue.shade300 : Colors.blue.shade700, 
-                                    fontSize: 10, 
-                                    fontWeight: FontWeight.w900, 
-                                    letterSpacing: 1.5
-                                  ),
-                                ),
-                                Text(
-                                  "(Includes yourself)",
-                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
-                                ),
-                              ],
-                            ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: Colors.blueAccent,
-                                borderRadius: BorderRadius.circular(8),
+                                color: AppTheme.rideAccent.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text(
-                                '$_seats',
-                                style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              child: const Icon(Icons.calendar_month_rounded, color: AppTheme.rideAccent, size: 20),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _departure == null ? 'Select Date & Time' : DateFormat('EEEE, MMM dd').format(_departure!),
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.w600, 
+                                      fontSize: 14,
+                                      color: textPrimary,
+                                    ),
+                                  ),
+                                  if (_departure != null)
+                                    Text(
+                                      DateFormat('hh:mm a').format(_departure!),
+                                      style: GoogleFonts.outfit(
+                                        color: AppTheme.rideAccent,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
+                            Icon(Icons.chevron_right_rounded, color: textSecondary, size: 20),
                           ],
                         ),
-                        SliderTheme(
-                          data: SliderThemeData(
-                            activeTrackColor: Colors.blueAccent,
-                            inactiveTrackColor: isDark ? Colors.white10 : Colors.blue.shade100,
-                            thumbColor: Colors.white,
-                            overlayColor: Colors.blueAccent.withOpacity(0.2),
-                            trackHeight: 4,
-                            valueIndicatorColor: Colors.blueAccent,
-                            valueIndicatorTextStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-                          ),
-                          child: Slider(
-                            min: 1,
-                            max: 6,
-                            divisions: 5,
-                            value: _seats.toDouble(),
-                            label: '$_seats Seats',
-                            onChanged: (value) {
-                              setState(() {
-                                _seats = value.round();
-                              });
-                            },
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  
-                  const SizedBox(height: 16),
 
-                  // Warning banner
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.amber.withOpacity(0.1) : Colors.amber.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.amber.withOpacity(0.5)),
-                    ),
-                    child: Row(
+                    const SizedBox(height: 24),
+
+                    // Gender Preference
+                    _buildSectionHeader('GENDER PREFERENCE', Icons.people_rounded, isDark),
+                    const SizedBox(height: 12),
+                    Row(
                       children: [
-                        const Icon(Icons.shield_rounded, color: Colors.orange, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(
+                        _buildGenderChip('Mixed', 'mixed', Icons.group_rounded, isDark),
+                        const SizedBox(width: 10),
+                        _buildGenderChip('Female', 'female', Icons.female_rounded, isDark),
+                        const SizedBox(width: 10),
+                        _buildGenderChip('Male', 'male', Icons.male_rounded, isDark),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Seats
+                    _buildSectionHeader('AVAILABLE SEATS', Icons.event_seat_rounded, isDark),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          "(Includes yourself)",
+                          style: TextStyle(fontSize: 11, color: textSecondary, fontStyle: FontStyle.italic),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppTheme.rideAccent.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.rideAccent.withOpacity(0.2)),
+                          ),
                           child: Text(
-                            "Safety first! Please contact your fellow riders once they join to coordinate the trip.",
-                            style: GoogleFonts.outfit(
-                              fontSize: 11, 
-                              color: isDark ? Colors.amber.shade200 : Colors.orange.shade900, 
-                              fontWeight: FontWeight.w600,
-                            ),
+                            '$_seats',
+                            style: GoogleFonts.outfit(color: AppTheme.rideAccent, fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  
-                  // Phone Number Input
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: isDark ? Colors.white10 : Colors.blue.withOpacity(0.2)),
+                    const SizedBox(height: 8),
+                    SliderTheme(
+                      data: SliderThemeData(
+                        activeTrackColor: AppTheme.rideAccent,
+                        inactiveTrackColor: isDark ? AppTheme.darkBorder : AppTheme.lightBorder,
+                        thumbColor: AppTheme.rideAccent,
+                        overlayColor: AppTheme.rideAccent.withOpacity(0.15),
+                        trackHeight: 5,
+                        valueIndicatorColor: AppTheme.rideAccent,
+                        valueIndicatorTextStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      child: Slider(
+                        min: 1,
+                        max: 6,
+                        divisions: 5,
+                        value: _seats.toDouble(),
+                        label: '$_seats Seats',
+                        onChanged: (value) {
+                          setState(() {
+                            _seats = value.round();
+                          });
+                        },
+                      ),
                     ),
-                    child: TextFormField(
+                    
+                    const SizedBox(height: 24),
+
+                    // Phone Number
+                    _buildSectionHeader('CONTACT NUMBER', Icons.phone_rounded, isDark),
+                    const SizedBox(height: 12),
+                    TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
+                      readOnly: !_isEditingPhone,
+                      style: GoogleFonts.outfit(color: textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
                       decoration: InputDecoration(
-                        labelText: "Confirm Your Phone Number",
-                        labelStyle: GoogleFonts.outfit(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold),
-                        prefixIcon: const Icon(Icons.phone_android_rounded, color: Colors.blue, size: 20),
-                        border: InputBorder.none,
-                        hintText: "Enter contact number",
-                      ),
-                      validator: (v) => (v == null || v.isEmpty) ? "Required" : null,
-                    ),
-                  ),
-                  
-                  // Submit Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: _submitting
-                      ? Center(child: CircularProgressIndicator(color: isDark ? Colors.white : Colors.blue.shade900))
-                      : slide_to_act.SlideAction(
-                          text: 'Slide to Host Ride',
-                          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, color: isDark ? Colors.white : Colors.blue.shade900),
-                          innerColor: isDark ? Colors.blue.shade400 : Colors.blue.shade600,
-                          outerColor: isDark ? Colors.white.withOpacity(0.1) : Colors.blue.shade50,
-                          sliderButtonIcon: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 24),
-                          elevation: 0,
-                          borderRadius: 16,
-                          sliderButtonIconPadding: 8,
-                          onSubmit: () async {
-                            if (_formKey.currentState!.validate()) {
-                               await _submit();
-                            }
-                            return null;
-                          },
+                        filled: true,
+                        fillColor: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent.withOpacity(0.3), width: 1.5)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder, width: 1.5)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent, width: 2)),
+                        prefixIcon: Icon(Icons.phone_rounded, color: AppTheme.rideAccent, size: 20),
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: TextButton(
+                            onPressed: () {
+                              if (_isEditingPhone) {
+                                if (_phoneController.text.trim().length == 10) {
+                                  setState(() {
+                                    _isEditingPhone = false;
+                                  });
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 10-digit number')));
+                                }
+                              } else {
+                                setState(() {
+                                  _isEditingPhone = true;
+                                });
+                              }
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              minimumSize: const Size(0, 36),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              backgroundColor: _isEditingPhone ? AppTheme.rideAccent : Colors.transparent,
+                            ),
+                            child: Text(
+                              _isEditingPhone ? 'Save' : 'Edit',
+                              style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w700, color: _isEditingPhone ? Colors.white : AppTheme.rideAccent),
+                            ),
+                          ),
                         ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        isDense: true,
+                      ),
+                      validator: (v) => (v == null || v.isEmpty || v.length != 10) ? "Valid 10-digit number required" : null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+
+            // Safety notice
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppTheme.rideAccent.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.rideAccent.withOpacity(0.12)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.rideAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.shield_rounded, color: AppTheme.rideAccent, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      "Safety first! Please contact your fellow riders once they join to coordinate the trip.",
+                      style: GoogleFonts.outfit(
+                        fontSize: 12, 
+                        color: textSecondary, 
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
+            
+            const SizedBox(height: 20),
+
+            // Submit Button
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: _submitting
+                ? Center(child: CircularProgressIndicator(color: AppTheme.rideAccent))
+                : slide_to_act.SlideAction(
+                    text: 'SLIDE TO HOST RIDE',
+                    textStyle: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: textSecondary.withOpacity(0.6),
+                      letterSpacing: 1.5,
+                    ),
+                    innerColor: AppTheme.rideAccent,
+                    outerColor: AppTheme.rideAccent.withOpacity(0.1),
+                    sliderButtonIcon: Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 22),
+                    elevation: 0,
+                    borderRadius: 16,
+                    sliderButtonIconPadding: 12,
+                    sliderRotate: false,
+                    submittedIcon: Icon(Icons.check_rounded, color: Colors.white, size: 24),
+                    onSubmit: () async {
+                      if (_formKey.currentState!.validate()) {
+                         await _submit();
+                      }
+                      return null;
+                    },
+                  ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, bool isDark) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: AppTheme.rideAccent),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: GoogleFonts.outfit(
+            color: AppTheme.rideAccent, 
+            fontSize: 10, 
+            fontWeight: FontWeight.w800, 
+            letterSpacing: 1.2
+          ),
+        ),
+      ],
     );
   }
 
@@ -665,38 +642,31 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
         onTap: () => setState(() => _genderPreference = value),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: isSelected 
-              ? Colors.blueAccent 
-              : (isDark ? Colors.white.withOpacity(0.05) : Colors.white),
-            borderRadius: BorderRadius.circular(12),
+              ? AppTheme.rideAccent 
+              : (isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8)),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isSelected ? Colors.blueAccent : (isDark ? Colors.white10 : Colors.grey.shade300),
+              color: isSelected ? AppTheme.rideAccent : (isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
             ),
-            boxShadow: isSelected ? [
-              BoxShadow(
-                color: Colors.blueAccent.withOpacity(0.4),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              )
-            ] : [],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon, 
-                color: isSelected ? Colors.white : (isDark ? Colors.white54 : Colors.grey.shade600),
-                size: 16,
+                color: isSelected ? Colors.white : textSecondary(isDark),
+                size: 18,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 label,
                 style: GoogleFonts.outfit(
-                  color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  fontSize: 11,
+                  color: isSelected ? Colors.white : (isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -705,4 +675,6 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
       ),
     );
   }
+
+  Color textSecondary(bool isDark) => isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
 }

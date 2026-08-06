@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AppTheme {
   // ── Brand Accent (Google Pay / Material You) ─────────────────
@@ -15,10 +16,10 @@ class AppTheme {
   static const Color error       = Color(0xFFEA4335); // Google Red — errors, decline
 
   // ── Section Accents (adapted to GPay Brand scheme) ───────────
-  static const Color socialAccent  = Color(0xFF4285F4); // Google Blue
-  static const Color rideAccent    = Color(0xFFFBBC05); // Google Yellow
-  static const Color marketAccent  = Color(0xFF34A853); // Google Green
-  static const Color profileAccent = Color(0xFFEA4335); // Google Red
+  static const Color socialAccent  = primary; // Unified Brand Blue
+  static const Color rideAccent    = primary; // Unified Brand Blue
+  static const Color marketAccent  = primary; // Unified Brand Blue
+  static const Color profileAccent = primary; // Unified Brand Blue
 
   // ── Light Palette (White-First) ──────────────────────────────
   static const Color lightBg           = Color(0xFFF9FAFB); // Background — warm gray
@@ -204,27 +205,26 @@ class AppTheme {
   );
 }
 
-class ThemeProvider extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.light;
-
-  ThemeProvider() {
+class ThemeNotifier extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() {
     _loadTheme();
+    return ThemeMode.light;
   }
-
-  ThemeMode get themeMode => _themeMode;
-  bool get isDarkMode => _themeMode == ThemeMode.dark;
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final isDark = prefs.getBool('isDarkMode') ?? false;
-    _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
-    notifyListeners();
+    state = isDark ? ThemeMode.dark : ThemeMode.light;
   }
 
   Future<void> toggleTheme(bool isOn) async {
-    _themeMode = isOn ? ThemeMode.dark : ThemeMode.light;
-    notifyListeners();
+    state = isOn ? ThemeMode.dark : ThemeMode.light;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isDarkMode', isOn);
   }
 }
+
+final themeProvider = NotifierProvider<ThemeNotifier, ThemeMode>(() {
+  return ThemeNotifier();
+});

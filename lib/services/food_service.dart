@@ -73,12 +73,13 @@ class FoodService {
     });
   }
 
-  Future<void> addMenuCategory(String shopId, String categoryName) async {
-    await _db
+  Future<String> addMenuCategory(String shopId, String categoryName) async {
+    final docRef = await _db
         .collection('food_shops')
         .doc(shopId)
         .collection('menu')
         .add({'name': categoryName, 'items': []});
+    return docRef.id;
   }
 
   Future<void> updateMenuCategory(String shopId, String categoryId, Map<String, dynamic> data) async {
@@ -186,6 +187,7 @@ class FoodService {
   Future<void> updateOrderStatus(String orderId, OrderStatus status, String customerId) async {
     await _db.collection('food_orders').doc(orderId).update({
       'status': status.toString().split('.').last,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
 
     // Notify Customer

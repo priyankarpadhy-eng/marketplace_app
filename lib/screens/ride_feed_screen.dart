@@ -8,8 +8,8 @@ import 'create_ride_screen.dart';
 import 'ride_detail_screen.dart';
 import '../models/app_user.dart';
 import '../theme/app_theme.dart';
-import '../widgets/guest_login_sheet.dart';
 import '../widgets/ride_how_it_works_card.dart';
+import '../widgets/app_loader.dart';
 
 class RideFeedScreen extends StatefulWidget {
   final AppUser currentUser;
@@ -21,6 +21,12 @@ class RideFeedScreen extends StatefulWidget {
 }
 
 class _RideFeedScreenState extends State<RideFeedScreen> {
+  static const Map<String, List<String>> _locationGroups = {
+    'bhawan': ['Aryabhatta Bhawan', 'Brahmos Bhawan', 'Surya Bhawan', 'Bhasker Bhawan', 'Akash Bhawan', 'Rohini Bhawan', 'Prithwi Bhawan'],
+    'talcher': ['Talcher Road', 'Talcher Thermal', 'Talcher Station'],
+    'angul': ['Angul Bus Stand', 'Angul Station'],
+  };
+
   final RideService _rideService = RideService();
   final TextEditingController _searchController = TextEditingController();
   String _genderFilter = 'all';
@@ -33,6 +39,19 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
     _ridesStream = _rideService.watchAllRides();
   }
 
+  List<String> _getSuggestionsFor(String query) {
+    if (query.isEmpty) return [];
+    final lower = query.toLowerCase();
+    for (final group in _locationGroups.entries) {
+      for (final place in group.value) {
+        if (place.toLowerCase().contains(lower)) {
+          return group.value.where((p) => p.toLowerCase() != lower).toList();
+        }
+      }
+    }
+    return [];
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -43,29 +62,14 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
         padding: const EdgeInsets.only(bottom: 110),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [AppTheme.rideAccent.withOpacity(0.9), AppTheme.rideAccent]
-                  : [AppTheme.rideAccent, const Color(0xFFD97706)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.rideAccent.withOpacity(0.4),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            color: AppTheme.rideAccent,
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: () {
-                if (widget.currentUser.isGuest) {
-                  GuestLoginSheet.show(context);
-                  return;
-                }
                 Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => CreateRideScreen(currentUser: widget.currentUser),
                 ));
@@ -98,7 +102,7 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
         initialData: RideService.cachedRides,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoader();
           }
           if (snapshot.hasError) {
             return Center(
@@ -152,14 +156,11 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Icon badge
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [AppTheme.rideAccent, Color(0xFFD97706)],
-                              ),
-                              borderRadius: BorderRadius.circular(10),
+                              color: AppTheme.rideAccent,
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: const FaIcon(FontAwesomeIcons.carSide, size: 14, color: Colors.white),
                           ),
@@ -298,15 +299,15 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
                           indicatorSize: TabBarIndicatorSize.tab,
                           indicator: BoxDecoration(
                             color: AppTheme.rideAccent,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(24),
                           ),
                           labelColor: Colors.white,
                           unselectedLabelColor: AppTheme.textSecondary(isDark),
-                          labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12),
+                          labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 16),
                           dividerColor: Colors.transparent,
                           tabs: const [
-                            Tab(text: 'Current & Future'),
-                            Tab(text: 'Past Rides'),
+                            Tab(height: 52, text: 'Current & Future'),
+                            Tab(height: 52, text: 'Past Rides'),
                           ],
                         ),
                       ),
@@ -320,26 +321,7 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
                 children: [
                   // Active Rides Tab
                   activeRides.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.rideAccent.withOpacity(0.08),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const FaIcon(FontAwesomeIcons.car, size: 40, color: AppTheme.rideAccent),
-                              ),
-                              const SizedBox(height: 16),
-                              Text('No active rides found', style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.textPrimary(isDark))),
-                              const SizedBox(height: 4),
-                              Text('Be the first to offer a ride!', style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark))),
-                              const SizedBox(height: 120),
-                            ],
-                          ),
-                        )
+                      ? _buildEmptyState(isDark)
                       : ListView.builder(
                           padding: const EdgeInsets.only(bottom: 120),
                           itemCount: activeRides.length,
@@ -395,6 +377,74 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool isDark) {
+    final query = _searchController.text.trim();
+    final suggestions = _getSuggestionsFor(query);
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppTheme.rideAccent.withOpacity(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const FaIcon(FontAwesomeIcons.car, size: 40, color: AppTheme.rideAccent),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              suggestions.isNotEmpty ? 'No rides to "$query"' : 'No active rides found',
+              style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.textPrimary(isDark)),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            if (suggestions.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Try these nearby locations:', style: GoogleFonts.outfit(fontSize: 13, color: AppTheme.textSecondary(isDark))),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: suggestions.map((place) {
+                  return GestureDetector(
+                    onTap: () {
+                      _searchController.text = place;
+                      setState(() {});
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.rideAccent.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.rideAccent.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.explore_rounded, size: 14, color: AppTheme.rideAccent),
+                          const SizedBox(width: 6),
+                          Text(place, style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.rideAccent)),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ] else ...[
+              Text('Be the first to offer a ride!', style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark))),
+            ],
+            const SizedBox(height: 120),
+          ],
+        ),
       ),
     );
   }

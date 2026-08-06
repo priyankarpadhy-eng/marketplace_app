@@ -9,10 +9,10 @@ import '../../providers/user_provider.dart';
 import '../../services/feed_service.dart';
 import '../comment_sheet.dart';
 import '../../models/app_user.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../expandable_text.dart';
 
-class ConfessionCard extends StatelessWidget {
+class ConfessionCard extends ConsumerWidget {
   final Post post;
   final String currentUserId;
 
@@ -32,9 +32,9 @@ class ConfessionCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final user = userProvider.currentUser;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userState = ref.watch(userProvider);
+    final user = userState.currentUser;
     final feedService = FeedService();
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/feature_request.dart';
 import '../services/feature_request_service.dart';
 import '../models/app_user.dart';
+import '../theme/app_theme.dart';
 
 class FeatureRequestsScreen extends StatefulWidget {
   final AppUser currentUser;
@@ -19,8 +20,9 @@ class _FeatureRequestsScreenState extends State<FeatureRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD),
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       body: StreamBuilder<List<FeatureRequest>>(
         stream: _service.watchRequests(),
         builder: (context, snapshot) {
@@ -28,7 +30,7 @@ class _FeatureRequestsScreenState extends State<FeatureRequestsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final requests = snapshot.data ?? [];
-          
+
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
@@ -42,9 +44,9 @@ class _FeatureRequestsScreenState extends State<FeatureRequestsScreen> {
                         style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         "Help shape the future by suggesting and voting on ideas.",
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: AppTheme.textSecondary(isDark)),
                       ),
                     ],
                   ),
@@ -88,16 +90,17 @@ class _RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasVoted = request.voterIds.contains(userId);
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surface(isDark),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: AppTheme.textPrimary(isDark).withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -118,7 +121,7 @@ class _RequestCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _getStatusColor(request.status).withOpacity(0.1),
+                        color: _getStatusColor(request.status).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -139,10 +142,10 @@ class _RequestCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: hasVoted ? const Color(0xFF6A5AE0).withOpacity(0.1) : Colors.grey[100],
+                    color: hasVoted ? AppTheme.primary.withValues(alpha: 0.1) : AppTheme.surfaceAlt(isDark),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: hasVoted ? const Color(0xFF6A5AE0) : Colors.transparent,
+                      color: hasVoted ? AppTheme.primary : Colors.transparent,
                     ),
                   ),
                   child: Column(
@@ -150,14 +153,14 @@ class _RequestCard extends StatelessWidget {
                       FaIcon(
                         FontAwesomeIcons.thumbsUp,
                         size: 16,
-                        color: hasVoted ? const Color(0xFF6A5AE0) : Colors.grey,
+                        color: hasVoted ? AppTheme.primary : AppTheme.textSecondary(isDark),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         request.votes.toString(),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: hasVoted ? const Color(0xFF6A5AE0) : Colors.grey,
+                          color: hasVoted ? AppTheme.primary : AppTheme.textSecondary(isDark),
                         ),
                       ),
                     ],
@@ -169,7 +172,7 @@ class _RequestCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             request.description,
-            style: const TextStyle(color: Colors.black87, height: 1.5),
+            style: TextStyle(color: AppTheme.textPrimary(isDark), height: 1.5),
           ),
           const SizedBox(height: 16),
           Row(
@@ -177,11 +180,11 @@ class _RequestCard extends StatelessWidget {
             children: [
               Text(
                 "by ${request.authorName}",
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 12),
               ),
               Text(
                 "Recently",
-                style: TextStyle(color: Colors.grey.withOpacity(0.5), fontSize: 10),
+                style: TextStyle(color: AppTheme.textSecondary(isDark).withValues(alpha: 0.5), fontSize: 10),
               ),
             ],
           ),

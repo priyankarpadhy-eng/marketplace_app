@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/user_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../services/admin_service.dart';
@@ -10,15 +10,16 @@ import '../../models/marketplace_item.dart';
 import '../../models/app_user.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class AdminPanelScreen extends StatefulWidget {
+class AdminPanelScreen extends ConsumerStatefulWidget {
   const AdminPanelScreen({super.key});
 
   @override
-  State<AdminPanelScreen> createState() => _AdminPanelScreenState();
+  ConsumerState<AdminPanelScreen> createState() => _AdminPanelScreenState();
 }
 
-class _AdminPanelScreenState extends State<AdminPanelScreen> {
+class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   final AdminService _adminService = AdminService();
   int _selectedIndex = 0;
   final TextEditingController _roleSearchController = TextEditingController();
@@ -35,7 +36,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = Provider.of<UserProvider>(context).currentUser;
+    final user = ref.watch(userProvider).currentUser;
     final isFounder = user?.isFounder ?? false;
 
     // Filter pages based on permissions
@@ -46,13 +47,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       AdminPage("Flags", FontAwesomeIcons.flag, _buildManagementTab("Flagged Content", Icons.flag_rounded)),
       if (isFounder) AdminPage("User Roles", FontAwesomeIcons.userShield, _buildRoleManagerTab()),
       if (isFounder) AdminPage("Verifications", FontAwesomeIcons.certificate, _buildShopVerificationsTab()),
+      if (isFounder) AdminPage("Song Requests", FontAwesomeIcons.music, _buildSongRequestsTab()),
       if (isFounder) AdminPage("System", FontAwesomeIcons.gears, _buildSystemTab()),
     ];
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
-    final surfaceColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
+    final bgColor = AppTheme.scaffoldBg(isDark);
+    final surfaceColor = AppTheme.surface(isDark);
+    final textColor = AppTheme.textPrimary(isDark);
     final width = MediaQuery.of(context).size.width;
     final isMobile = width < 900;
 
@@ -90,8 +92,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       duration: const Duration(milliseconds: 300),
       width: width,
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15)],
+        color: AppTheme.darkBg,
+        boxShadow: [BoxShadow(color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.08), blurRadius: 15)],
       ),
       child: Column(
         crossAxisAlignment: (_isSidebarCollapsed && !isDrawer) ? CrossAxisAlignment.center : CrossAxisAlignment.start,
@@ -105,9 +107,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 const FaIcon(FontAwesomeIcons.rocket, color: AppTheme.primary, size: 24),
                 if (!(_isSidebarCollapsed && !isDrawer)) ...[
                   const SizedBox(width: 12),
-                  Text(
+                    Text(
                     "IGIT MARKET",
-                    style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1),
+                    style: GoogleFonts.outfit(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1),
                   ),
                 ],
               ],
@@ -119,7 +121,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
                 "FOUNDER CONSOLE",
-                style: GoogleFonts.outfit(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
+                style: GoogleFonts.outfit(color: AppTheme.darkTextPrimary.withOpacity(0.38), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
               ),
             ),
           const SizedBox(height: 40),
@@ -146,14 +148,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       child: Row(
                         mainAxisAlignment: (_isSidebarCollapsed && !isDrawer) ? MainAxisAlignment.center : MainAxisAlignment.start,
                         children: [
-                          FaIcon(page.icon, color: isSelected ? AppTheme.primary : Colors.white60, size: 18),
+                          FaIcon(page.icon, color: isSelected ? AppTheme.primary : AppTheme.darkTextPrimary.withOpacity(0.6), size: 18),
                           if (!(_isSidebarCollapsed && !isDrawer)) ...[
                             const SizedBox(width: 16),
                             Flexible(
                               child: Text(
                                 page.title,
                                 style: GoogleFonts.outfit(
-                                  color: isSelected ? Colors.white : Colors.white60,
+                                  color: isSelected ? AppTheme.darkTextPrimary : AppTheme.darkTextPrimary.withOpacity(0.6),
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   fontSize: 15,
                                 ),
@@ -169,11 +171,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               },
             ),
           ),
-          const Divider(color: Colors.white10),
+          Divider(color: AppTheme.darkBorder),
           ListTile(
             contentPadding: EdgeInsets.symmetric(horizontal: (_isSidebarCollapsed && !isDrawer) ? 0 : 24),
-            leading: (_isSidebarCollapsed && !isDrawer) ? null : const Icon(Icons.logout, color: Colors.redAccent),
-            title: (_isSidebarCollapsed && !isDrawer) ? const Icon(Icons.logout, color: Colors.redAccent) : const Text("Exit Console", style: TextStyle(color: Colors.white70)),
+            leading: (_isSidebarCollapsed && !isDrawer) ? null : Icon(Icons.logout, color: AppTheme.error),
+            title: (_isSidebarCollapsed && !isDrawer) ? Icon(Icons.logout, color: AppTheme.error) : Text("Exit Console", style: TextStyle(color: AppTheme.darkTextPrimary.withOpacity(0.7))),
             onTap: () {
               // On mobile/drawer, close drawer first then pop screen
               if (isDrawer) Navigator.of(context).pop(); 
@@ -191,7 +193,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         color: surfaceColor,
-        border: Border(bottom: BorderSide(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0))),
+        border: Border(bottom: BorderSide(color: AppTheme.border(isDark))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -231,7 +233,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               CircleAvatar(
                 radius: 18,
                 backgroundColor: AppTheme.primary, 
-                child: Text("F", style: GoogleFonts.outfit(color: Colors.black, fontWeight: FontWeight.bold))
+                child: Text("F", style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold))
               ),
             ],
           ),
@@ -244,10 +246,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF1F5F9),
+        color: AppTheme.surfaceAlt(isDark),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(icon, size: 20, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
+      child: Icon(icon, size: 20, color: AppTheme.textSecondary(isDark)),
     );
   }
 
@@ -266,10 +268,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               spacing: 24,
               runSpacing: 24,
               children: [
-                _buildStatCard("Total Users", stats['users'].toString(), FontAwesomeIcons.users, Colors.blue),
-                _buildStatCard("Active Listings", stats['listings'].toString(), FontAwesomeIcons.shop, Colors.green),
-                _buildStatCard("Daily Posts", stats['posts'].toString(), FontAwesomeIcons.bolt, Colors.orange),
-                _buildStatCard("Pending Verifs", stats['pending'].toString(), FontAwesomeIcons.certificate, Colors.purple),
+                _buildStatCard("Total Users", stats['users'].toString(), FontAwesomeIcons.users, AppTheme.primary),
+                _buildStatCard("Active Listings", stats['listings'].toString(), FontAwesomeIcons.shop, AppTheme.success),
+                _buildStatCard("Daily Posts", stats['posts'].toString(), FontAwesomeIcons.bolt, AppTheme.warning),
+                _buildStatCard("Pending Verifs", stats['pending'].toString(), FontAwesomeIcons.certificate, AppTheme.rideAccent),
               ],
             ),
           ],
@@ -300,9 +302,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           width: cardWidth,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          color: AppTheme.surface(isDark),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+          boxShadow: [BoxShadow(color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.08), blurRadius: 10)],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,12 +317,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
                   child: FaIcon(icon, color: color, size: 20),
                 ),
-                Icon(Icons.more_vert, color: isDark ? Colors.white38 : Colors.grey),
+                Icon(Icons.more_vert, color: AppTheme.textSecondary(isDark)),
               ],
             ),
             const SizedBox(height: 20),
-            Text(value, style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.bold, color: isDark ? Colors.white : const Color(0xFF1E293B))),
-            Text(title, style: TextStyle(color: isDark ? Colors.white38 : Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
+            Text(value, style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark))),
+            Text(title, style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 13, fontWeight: FontWeight.w500)),
           ],
         ),
       );
@@ -330,7 +332,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Widget _buildRoleManagerTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final surfaceColor = AppTheme.surface(isDark);
     final query = _roleSearchController.text.trim();
 
     return Padding(
@@ -344,19 +346,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("User Role Manager", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: isDark ? Colors.white : Colors.black)),
+                Text("User Role Manager", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textPrimary(isDark))),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _roleSearchController,
-                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                  style: TextStyle(color: AppTheme.textPrimary(isDark)),
                   onChanged: (_) => _searchForRole(),
                   decoration: InputDecoration(
                     hintText: "Search by name or email...",
-                    hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey),
-                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.white60 : Colors.grey),
+                    hintStyle: TextStyle(color: AppTheme.textSecondary(isDark)),
+                    prefixIcon: Icon(Icons.search, color: AppTheme.textSecondary(isDark)),
                     filled: true,
-                    fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.grey.shade300)),
+                    fillColor: AppTheme.surface(isDark),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.border(isDark))),
                   ),
                 ),
               ],
@@ -369,7 +371,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               : StreamBuilder<List<AppUser>>(
                   stream: _adminService.watchAllUsers(),
                   builder: (context, snapshot) {
-                    if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
+                    if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}", style: TextStyle(color: AppTheme.error)));
                     if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                     return _buildUserList(snapshot.data!, isDark, surfaceColor);
                   },
@@ -382,7 +384,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Widget _buildUserList(List<AppUser> users, bool isDark, Color surfaceColor) {
     if (users.isEmpty) {
-      return Center(child: Text("No users found", style: TextStyle(color: isDark ? Colors.white38 : Colors.grey)));
+      return Center(child: Text("No users found", style: TextStyle(color: AppTheme.textSecondary(isDark))));
     }
     return ListView.builder(
       itemCount: users.length,
@@ -405,18 +407,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(user.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    Text(user.email, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text(user.email, style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 12)),
                   ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (user.role == 'admin' ? Colors.red : (user.role == 'restaurant' ? Colors.green : (user.role == 'shop' ? Colors.orange : Colors.blue))).withOpacity(0.1),
+                  color: (user.role == 'admin' ? AppTheme.error : (user.role == 'restaurant' ? AppTheme.success : (user.role == 'shop' ? AppTheme.warning : AppTheme.primary))).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(user.role.toUpperCase(), style: TextStyle(
-                  color: user.role == 'admin' ? Colors.red : (user.role == 'restaurant' ? Colors.green : (user.role == 'shop' ? Colors.orange : Colors.blue)),
+                  color: user.role == 'admin' ? AppTheme.error : (user.role == 'restaurant' ? AppTheme.success : (user.role == 'shop' ? AppTheme.warning : AppTheme.primary)),
                   fontWeight: FontWeight.bold,
                   fontSize: 10,
                 )),
@@ -441,7 +443,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Widget _buildShopVerificationsTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final surfaceColor = AppTheme.surface(isDark);
 
     return StreamBuilder<List<AppUser>>(
       stream: _adminService.watchPendingVerifications(),
@@ -451,12 +453,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                Icon(Icons.error_outline, color: AppTheme.error, size: 48),
                 const SizedBox(height: 16),
                 Text("Error loading verifications", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
-                  child: Text(snapshot.error.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  child: Text(snapshot.error.toString(), textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 12)),
                 ),
                 ElevatedButton(onPressed: () => setState(() {}), child: const Text("Retry")),
               ],
@@ -472,9 +474,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const FaIcon(FontAwesomeIcons.circleCheck, color: Colors.green, size: 48),
+                FaIcon(FontAwesomeIcons.circleCheck, color: AppTheme.success, size: 48),
                 const SizedBox(height: 16),
-                Text("No pending verifications", style: GoogleFonts.outfit(fontSize: 18, color: isDark ? Colors.white70 : Colors.grey)),
+                Text("No pending verifications", style: GoogleFonts.outfit(fontSize: 18, color: AppTheme.textSecondary(isDark))),
               ],
             ),
           );
@@ -490,7 +492,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               decoration: BoxDecoration(
                 color: surfaceColor,
                 borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+                boxShadow: [BoxShadow(color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.08), blurRadius: 10)],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,8 +534,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(shop.shopName ?? "Untitled Shop", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 22, color: isDark ? Colors.white : Colors.black)),
-                                  Text("Owner: ${shop.name} • ${shop.email}", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                                  Text(shop.shopName ?? "Untitled Shop", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 22, color: AppTheme.textPrimary(isDark))),
+                                  Text("Owner: ${shop.name} • ${shop.email}", style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 13)),
                                 ],
                               ),
                             ),
@@ -546,14 +548,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         const SizedBox(height: 24),
                         const Divider(),
                         const SizedBox(height: 16),
-                        Text("Actions:", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white70 : Colors.black54)),
+                        Text("Actions:", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.textSecondary(isDark))),
                         const SizedBox(height: 12),
                         Row(
                           children: [
                             _buildApprovalButton(
                               label: "Approve Shop",
                               icon: FontAwesomeIcons.circleCheck,
-                              color: Colors.green,
+                              color: AppTheme.success,
                               onPressed: () => _approveShop(shop.id, ['marketplace', 'rental']),
                             ),
                           ],
@@ -562,8 +564,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         const SizedBox(height: 12),
                         TextButton.icon(
                           onPressed: () => _adminService.updateVerificationStatus(shop.id, isVerified: false, status: 'rejected'),
-                          icon: const Icon(Icons.close, size: 16, color: Colors.red),
-                          label: const Text("Reject Request", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          icon: Icon(Icons.close, size: 16, color: AppTheme.error),
+                          label: Text("Reject Request", style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
@@ -580,8 +582,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   Widget _buildVerificationBadge(String status) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Text(status, style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+      decoration: BoxDecoration(color: AppTheme.warning.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+      child: Text(status, style: TextStyle(color: AppTheme.warning, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -590,9 +592,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.grey),
+          Icon(icon, size: 16, color: AppTheme.textSecondary(isDark)),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 14))),
+          Expanded(child: Text(text, style: TextStyle(color: AppTheme.textPrimary(isDark), fontSize: 14))),
         ],
       ),
     );
@@ -637,7 +639,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             
             return Card(
               margin: const EdgeInsets.only(bottom: 16),
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              color: AppTheme.surface(isDark),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -655,12 +657,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(post.authorName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            Text(DateFormat.yMMMd().format(post.createdAt), style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                            Text(DateFormat.yMMMd().format(post.createdAt), style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 11)),
                           ],
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          icon: Icon(Icons.delete_outline, color: AppTheme.error),
                           onPressed: () => _adminService.deletePost(post.id),
                         ),
                       ],
@@ -676,7 +678,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           width: double.infinity,
                           height: 200,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(color: Colors.grey.withOpacity(0.1)),
+                          placeholder: (context, url) => Container(color: AppTheme.surfaceAlt(isDark)),
                         ),
                       ),
                     ],
@@ -706,7 +708,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 leading: CachedNetworkImage(imageUrl: item.image, width: 50, height: 50, fit: BoxFit.cover),
                 title: Text(item.title),
                 subtitle: Text("${item.priceUnit}${item.price}"),
-                trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _adminService.deleteListing(item.id)),
+                trailing: IconButton(icon: Icon(Icons.delete_outline, color: AppTheme.error), onPressed: () => _adminService.deleteListing(item.id)),
               ),
             );
           },
@@ -716,11 +718,85 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   Widget _buildSystemTab() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Text(
         "System Settings (Coming Soon)",
-        style: TextStyle(color: Colors.grey),
+        style: TextStyle(color: AppTheme.textSecondary(isDark)),
       ),
+    );
+  }
+
+  Widget _buildSongRequestsTab() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = AppTheme.surface(isDark);
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('song_requests').orderBy('createdAt', descending: true).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) return Center(child: Text('No song requests yet.', style: TextStyle(color: AppTheme.textSecondary(isDark))));
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(24),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            final query = data['query'] ?? 'Unknown';
+            final requestedByName = data['requestedByName'] ?? 'Unknown User';
+            final status = data['status'] ?? 'pending';
+            
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              color: surfaceColor,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppTheme.border(isDark)),
+              ),
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppTheme.rideAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(Icons.music_note, color: AppTheme.rideAccent, size: 20),
+                ),
+                title: Text('"$query"', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark))),
+                subtitle: Text('Requested by $requestedByName', style: TextStyle(color: AppTheme.textSecondary(isDark))),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: status == 'resolved' ? AppTheme.success.withOpacity(0.1) : AppTheme.warning.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(status.toUpperCase(), style: TextStyle(
+                        color: status == 'resolved' ? AppTheme.success : AppTheme.warning,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      )),
+                    ),
+                    const SizedBox(width: 8),
+                    if (status != 'resolved')
+                      IconButton(
+                        icon: Icon(Icons.check_circle_outline, color: AppTheme.success),
+                        tooltip: "Mark as Resolved",
+                        onPressed: () {
+                          FirebaseFirestore.instance.collection('song_requests').doc(doc.id).update({'status': 'resolved'});
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

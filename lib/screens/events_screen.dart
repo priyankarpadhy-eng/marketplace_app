@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/event_item.dart';
 import '../services/events_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_loader.dart';
 
 class EventsScreen extends StatefulWidget {
   const EventsScreen({super.key});
@@ -25,13 +28,14 @@ class _EventsScreenState extends State<EventsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FD),
+      backgroundColor: AppTheme.scaffoldBg(isDark),
       body: StreamBuilder<List<EventItem>>(
         stream: _eventsService.watchEvents(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoader();
           }
           final events = snapshot.data ?? [];
           if (events.isEmpty) {
@@ -51,7 +55,7 @@ class _EventsScreenState extends State<EventsScreen> {
                         style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      const Text("Join workshops, fests, and campus activities.", style: TextStyle(color: Colors.grey)),
+                      Text("Join workshops, fests, and campus activities.", style: TextStyle(color: AppTheme.textSecondary(isDark))),
                     ],
                   ),
                 ),
@@ -79,15 +83,16 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final catColor = colors[event.category.toLowerCase()] ?? colors['general'];
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.surface(isDark),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: AppTheme.textPrimary(isDark).withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -99,9 +104,9 @@ class _EventCard extends StatelessWidget {
               child: AspectRatio(
                 aspectRatio: 16 / 9,
                 child: CachedNetworkImage(
-                  imageUrl: event.bannerUrl!, 
+                  imageUrl: event.bannerUrl!,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: Colors.grey[200]),
+                  placeholder: (context, url) => Container(color: AppTheme.surfaceAlt(isDark)),
                   errorWidget: (context, url, error) => const Icon(Icons.error),
                 ),
               ),
@@ -136,15 +141,15 @@ class _EventCard extends StatelessWidget {
                   style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(event.caption, style: const TextStyle(color: Colors.grey)),
+                Text(event.caption, style: TextStyle(color: AppTheme.textSecondary(isDark))),
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today, size: 14, color: Colors.indigo),
+                    Icon(Icons.calendar_today, size: 14, color: AppTheme.primary),
                     const SizedBox(width: 8),
                     Text(event.eventDate, style: const TextStyle(fontSize: 12)),
                     const SizedBox(width: 16),
-                    const Icon(Icons.location_on, size: 14, color: Colors.indigo),
+                    Icon(Icons.location_on, size: 14, color: AppTheme.primary),
                     const SizedBox(width: 8),
                     Text(event.location ?? "Campus", style: const TextStyle(fontSize: 12)),
                   ],
@@ -156,7 +161,7 @@ class _EventCard extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () => launchUrl(Uri.parse(event.registrationLink!)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6A5AE0),
+                        backgroundColor: AppTheme.primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 16),

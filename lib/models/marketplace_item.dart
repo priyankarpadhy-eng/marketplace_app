@@ -16,11 +16,12 @@ class MarketplaceItem {
   final String? sellerAvatar;
   final int favorites;
   final String priceUnit;
-  final String timeAgo;
   final bool isSold;
   final String status; // 'available', 'not_available', 'sold'
   final DateTime? statusUpdatedAt;
   final DateTime createdAt;
+  final bool broadcasted; // Whether the listing was broadcasted
+  final DateTime? broadcastedAt;
 
   MarketplaceItem({
     required this.id,
@@ -38,12 +39,23 @@ class MarketplaceItem {
     this.sellerAvatar,
     this.favorites = 0,
     this.priceUnit = '',
-    this.timeAgo = 'Just now',
     this.isSold = false,
     this.status = 'available',
     this.statusUpdatedAt,
     required this.createdAt,
+    this.broadcasted = false,
+    this.broadcastedAt,
   });
+
+  String get timeAgo {
+    final diff = DateTime.now().difference(createdAt);
+    if (diff.inDays >= 365) return '${(diff.inDays / 365).floor()}y ago';
+    if (diff.inDays >= 30) return '${(diff.inDays / 30).floor()}mo ago';
+    if (diff.inDays > 0) return '${diff.inDays}d ago';
+    if (diff.inHours > 0) return '${diff.inHours}h ago';
+    if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
+    return 'Just now';
+  }
 
   factory MarketplaceItem.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
@@ -66,11 +78,14 @@ class MarketplaceItem {
       sellerAvatar: data['sellerAvatar'],
       favorites: (data['favorites'] ?? 0) as int,
       priceUnit: data['priceUnit'] ?? '',
-      timeAgo: data['timeAgo'] ?? 'Just now',
       isSold: data['isSold'] ?? (data['status'] == 'sold'),
       status: data['status'] ?? 'available',
       statusUpdatedAt: (data['statusUpdatedAt'] as Timestamp?)?.toDate(),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ??
+          (data['created_at'] as Timestamp?)?.toDate() ??
+          DateTime.now(),
+      broadcasted: data['broadcasted'] ?? false,
+      broadcastedAt: (data['broadcastedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -90,11 +105,12 @@ class MarketplaceItem {
       'sellerId': sellerId,
       'sellerAvatar': sellerAvatar,
       'favorites': favorites,
-      'timeAgo': timeAgo,
       'isSold': isSold || (status == 'sold'),
       'status': status,
       'statusUpdatedAt': statusUpdatedAt != null ? Timestamp.fromDate(statusUpdatedAt!) : null,
       'createdAt': FieldValue.serverTimestamp(),
+      'broadcasted': broadcasted,
+      'broadcastedAt': broadcasted ? FieldValue.serverTimestamp() : null,
     };
   }
 
@@ -118,7 +134,6 @@ class MarketplaceItem {
       sellerAvatar: data['sellerAvatar'],
       favorites: (data['favorites'] ?? 0) as int,
       priceUnit: data['priceUnit'] ?? '',
-      timeAgo: data['timeAgo'] ?? 'Just now',
       isSold: data['is_sold'] ?? data['isSold'] ?? (data['status'] == 'sold'),
       status: data['status'] ?? 'available',
       statusUpdatedAt: data['statusUpdatedAt'] is Timestamp 
@@ -127,6 +142,10 @@ class MarketplaceItem {
       createdAt: data['createdAt'] is Timestamp 
           ? (data['createdAt'] as Timestamp).toDate() 
           : DateTime.tryParse(data['created_at'] ?? data['createdAt']?.toString() ?? '') ?? DateTime.now(),
+      broadcasted: data['broadcasted'] ?? false,
+      broadcastedAt: data['broadcastedAt'] is Timestamp
+          ? (data['broadcastedAt'] as Timestamp).toDate()
+          : DateTime.tryParse(data['broadcastedAt']?.toString() ?? ''),
     );
   }
 }

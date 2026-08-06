@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/food_models.dart';
 import '../../services/food_service.dart';
 import '../../models/app_user.dart';
@@ -109,7 +110,8 @@ class _RestaurantMenuSettingsPageState extends State<RestaurantMenuSettingsPage>
     return StreamBuilder<List<FoodShop>>(
       stream: _foodSvc.getShops(),
       builder: (context, snapshot) {
-        final shop = snapshot.data?.firstWhere((s) => s.id == widget.currentUser.id, 
+        final shopList = snapshot.data ?? [];
+        final shop = shopList.firstWhere((s) => s.id == widget.currentUser.id, 
             orElse: () => FoodShop(id: widget.currentUser.id, name: widget.currentUser.shopName ?? 'My Shop', address: widget.currentUser.shopAddress ?? '', phoneNumber: widget.currentUser.phoneNumber, imageUrl: '', status: ShopStatus.closed));
         
         return Container(
@@ -210,33 +212,254 @@ class _RestaurantMenuSettingsPageState extends State<RestaurantMenuSettingsPage>
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('New Category', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'e.g. Biriyani, Drinks',
-            filled: true,
-            fillColor: Colors.grey.withOpacity(0.1),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Create Category', style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 20)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Burgers, Drinks',
+                  filled: true,
+                  fillColor: Colors.grey.withOpacity(0.1),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context), 
+                    child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.bold))
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (controller.text.trim().isNotEmpty) {
+                        final catName = controller.text.trim();
+                        Navigator.pop(context); // Close create dialog
+                        
+                        // Create Category
+                        final catId = await _foodSvc.addMenuCategory(widget.currentUser.id, catName);
+                        
+                        // Show Success & prompt for item
+                        if (mounted) {
+                          _showSuccessPrompt(catId, catName);
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7C3AED),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    child: Text('Create', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                _foodSvc.addMenuCategory(widget.currentUser.id, controller.text);
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C3AED)),
-            child: const Text('Add'),
-          ),
-        ],
       ),
+    );
+  }
+
+  void _showSuccessPrompt(String catId, String catName) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 48),
+              ),
+              const SizedBox(height: 16),
+              Text('Category Created!', style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 20)),
+              const SizedBox(height: 8),
+              Text('Would you like to add a menu item to $catName now?', 
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(color: Colors.grey, fontSize: 14)
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                      ),
+                      child: Text('Later', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.grey)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showAddItemFlow(catId, catName);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text('Add Item', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddItemFlow(String catId, String catName) {
+    final nameCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final imageCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: SingleChildScrollView(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Add to $catName', style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 20)),
+                const SizedBox(height: 20),
+                
+                // Name Field
+                Text('Item Name', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: _inputDecoration('e.g. Classic Cheeseburger'),
+                ),
+                const SizedBox(height: 16),
+                
+                // Price Field
+                Text('Price (₹)', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: _inputDecoration('e.g. 199'),
+                ),
+                const SizedBox(height: 16),
+                
+                // Description Field
+                Text('Description (Optional)', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 2,
+                  decoration: _inputDecoration('Short description of the item'),
+                ),
+                const SizedBox(height: 16),
+                
+                // Image URL Field
+                Text('Image URL (Optional)', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: imageCtrl,
+                  decoration: _inputDecoration('https://...'),
+                ),
+                const SizedBox(height: 24),
+                
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context), 
+                      child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.bold))
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        if (nameCtrl.text.isNotEmpty && priceCtrl.text.isNotEmpty) {
+                          final newItem = FoodItem(
+                            name: nameCtrl.text.trim(),
+                            price: double.parse(priceCtrl.text.trim()),
+                            description: descCtrl.text.trim(),
+                            imageUrl: imageCtrl.text.trim(),
+                            isAvailable: true,
+                          );
+                          
+                          // We append the new item using arrayUnion for safety
+                          await _foodSvc.updateMenuCategory(widget.currentUser.id, catId, {
+                            'items': FieldValue.arrayUnion([newItem.toMap()])
+                          });
+                          
+                          if (mounted) Navigator.pop(context);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      child: Text('Save Item', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey.withOpacity(0.1),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }
@@ -329,55 +552,116 @@ class _CategoryTile extends StatelessWidget {
   }
 
   void _showAddItemDialog(BuildContext context) {
+    // Instead of duplicating, we can just call a modified version of the new flow!
+    // But since this is a stateless widget, we will just implement the same UI here.
     final nameCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final imageCtrl = TextEditingController();
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Add Item to ${category.name}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: 'Item Name',
-                filled: true,
-                fillColor: Colors.grey.withOpacity(0.1),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              ),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: SingleChildScrollView(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(24),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: priceCtrl,
-              decoration: InputDecoration(
-                hintText: 'Price',
-                filled: true,
-                fillColor: Colors.grey.withOpacity(0.1),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              ),
-              keyboardType: TextInputType.number,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Add to ${category.name}', style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 20)),
+                const SizedBox(height: 20),
+                
+                Text('Item Name', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: _inputDecoration('e.g. Classic Cheeseburger'),
+                ),
+                const SizedBox(height: 16),
+                
+                Text('Price (₹)', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: _inputDecoration('e.g. 199'),
+                ),
+                const SizedBox(height: 16),
+                
+                Text('Description (Optional)', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 2,
+                  decoration: _inputDecoration('Short description'),
+                ),
+                const SizedBox(height: 16),
+                
+                Text('Image URL (Optional)', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: imageCtrl,
+                  decoration: _inputDecoration('https://...'),
+                ),
+                const SizedBox(height: 24),
+                
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context), 
+                      child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.bold))
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        if (nameCtrl.text.isNotEmpty && priceCtrl.text.isNotEmpty) {
+                          final newItem = FoodItem(
+                            name: nameCtrl.text.trim(),
+                            price: double.parse(priceCtrl.text.trim()),
+                            description: descCtrl.text.trim(),
+                            imageUrl: imageCtrl.text.trim(),
+                            isAvailable: true,
+                          );
+                          
+                          await FoodService().updateMenuCategory(shopId, category.id, {
+                            'items': FieldValue.arrayUnion([newItem.toMap()])
+                          });
+                          
+                          if (context.mounted) Navigator.pop(context);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      child: Text('Save Item', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty && priceCtrl.text.isNotEmpty) {
-                final newItem = FoodItem(name: nameCtrl.text, price: double.parse(priceCtrl.text), isAvailable: true);
-                final newItems = [...category.items, newItem];
-                FoodService().updateMenuCategory(shopId, category.id, {'items': newItems.map((i) => i.toMap()).toList()});
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C3AED)),
-            child: const Text('Add Item'),
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey.withOpacity(0.1),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }

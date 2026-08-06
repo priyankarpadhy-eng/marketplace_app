@@ -2,28 +2,30 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:market_app/models/post.dart';
 import 'package:market_app/services/feed_service.dart';
 import 'package:market_app/widgets/post_card.dart';
 import 'package:market_app/models/app_user.dart';
 import 'package:market_app/theme/app_theme.dart';
-import 'package:market_app/widgets/guest_login_sheet.dart';
 import 'package:market_app/screens/create_post_screen.dart';
 import 'package:market_app/screens/conversations_screen.dart';
 import 'package:market_app/screens/admin/admin_panel_screen.dart';
+import 'package:market_app/services/update_service.dart';
+import 'package:market_app/widgets/app_loader.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class SocialHomeScreen extends StatefulWidget {
+
+class SocialHomeScreen extends ConsumerStatefulWidget {
   final AppUser currentUser;
 
   const SocialHomeScreen({super.key, required this.currentUser});
 
   @override
-  State<SocialHomeScreen> createState() => _SocialHomeScreenState();
+  ConsumerState<SocialHomeScreen> createState() => _SocialHomeScreenState();
 }
 
-class _SocialHomeScreenState extends State<SocialHomeScreen> {
+class _SocialHomeScreenState extends ConsumerState<SocialHomeScreen> {
   final FeedService _feedService = FeedService();
   String _activeTag = 'All';
 
@@ -54,18 +56,25 @@ class _SocialHomeScreenState extends State<SocialHomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.instance.checkForUpdates();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: StreamBuilder<List<dynamic>>(
-        stream: _feedService.watchFeed(tag: _activeTag),
+          stream: _feedService.watchFeed(tag: _activeTag),
         initialData: _activeTag == 'All' ? FeedService.cachedFeed : null,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoader(message: 'Loading feed...');
           }
           final posts = snapshot.data ?? [];
 
@@ -141,20 +150,36 @@ class _SocialHomeScreenState extends State<SocialHomeScreen> {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  widget.currentUser.name.split(' ')[0],
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.textPrimary(isDark),
+                                // WhatsApp Group Button
+                                GestureDetector(
+                                  onTap: () => launchUrl(
+                                    Uri.parse('https://chat.whatsapp.com/D8gagbKfTZIC5JbCusG5dr'),
+                                    mode: LaunchMode.externalApplication,
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF25D366).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: const Color(0xFF25D366).withOpacity(0.3)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const FaIcon(FontAwesomeIcons.whatsapp, size: 16, color: Color(0xFF25D366)),
+                                        const SizedBox(width: 4),
+                                        Text('Join', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF25D366))),
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
+
                                 GestureDetector(
-                                  onTap: () => themeProvider.toggleTheme(!isDark),
+                                  onTap: () => ref.read(themeProvider.notifier).toggleTheme(!isDark),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 300),
-                                    padding: const EdgeInsets.all(7),
+                                    padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
                                       color: AppTheme.surface(isDark),
                                       borderRadius: BorderRadius.circular(20),
@@ -162,7 +187,7 @@ class _SocialHomeScreenState extends State<SocialHomeScreen> {
                                     ),
                                     child: Icon(
                                       isDark ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded,
-                                      size: 14,
+                                      size: 18,
                                       color: isDark ? AppTheme.warning : AppTheme.primary,
                                     ),
                                   ),
@@ -239,65 +264,7 @@ class _SocialHomeScreenState extends State<SocialHomeScreen> {
                       ),
                     ),
                   ),
-
-                  // ── WhatsApp Community Card ─────────────────────
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: GestureDetector(
-                        onTap: () => launchUrl(
-                          Uri.parse('https://chat.whatsapp.com/D8gagbKfTZIC5JbCusG5dr'),
-                          mode: LaunchMode.externalApplication,
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF0D251A)
-                                : AppTheme.successSoft,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppTheme.success.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF25D366),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const FaIcon(FontAwesomeIcons.whatsapp, color: Colors.white, size: 18),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Join Marketplace Group',
-                                      style: GoogleFonts.outfit(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 14,
-                                        color: isDark ? Colors.white : const Color(0xFF064E3B),
-                                      ),
-                                    ),
-                                    Text(
-                                      'Get real-time campus deal alerts',
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 11,
-                                        color: isDark ? Colors.white60 : const Color(0xFF065F46).withOpacity(0.75),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.chevron_right_rounded, color: const Color(0xFF10B981), size: 20),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  
 
                   // ── Feed List ───────────────────────────────────
                   if (posts.isEmpty)
@@ -353,10 +320,6 @@ class _SocialHomeScreenState extends State<SocialHomeScreen> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(24),
                       onTap: () {
-                        if (widget.currentUser.isGuest) {
-                          GuestLoginSheet.show(context);
-                          return;
-                        }
                         Navigator.push(context, MaterialPageRoute(builder: (_) => CreatePostScreen(currentUser: widget.currentUser)));
                       },
                       child: Padding(

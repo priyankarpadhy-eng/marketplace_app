@@ -26,6 +26,7 @@ class _ListProductScreenState extends State<ListProductScreen> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _locationController;
   late final TextEditingController _mobileController;
+  late final TextEditingController _reasonController;
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _ListProductScreenState extends State<ListProductScreen> {
     _descriptionController = TextEditingController(text: widget.editItem?.description ?? '');
     _locationController = TextEditingController(text: widget.editItem?.location ?? '');
     _mobileController = TextEditingController(text: widget.editItem?.mobileNumber ?? '');
+    _reasonController = TextEditingController();
     if (widget.editItem != null) {
       _selectedCategory = widget.editItem!.category;
       _selectedCondition = widget.editItem!.condition;
@@ -53,7 +55,7 @@ class _ListProductScreenState extends State<ListProductScreen> {
   bool _isLoading = false;
 
   final List<String> _categories = ['Textbooks', 'Electronics', 'Furniture', 'Clothing', 'Housing', 'Other'];
-  final List<String> _conditions = ['New', 'Like New', 'Good', 'Fair'];
+  final List<String> _conditions = ['New', 'Like New', 'Good', 'Fair', 'Refurbished'];
 
   Future<void> _showImageSelectionOptions() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -153,7 +155,7 @@ class _ListProductScreenState extends State<ListProductScreen> {
           'title': _titleController.text.trim(),
           'price': double.parse(_priceController.text.trim()),
           'category': _selectedCategory,
-          'description': _descriptionController.text.trim(),
+          'description': _selectedCondition == 'Refurbished' ? '${_descriptionController.text.trim()}\n\nReason for selling: ${_reasonController.text.trim()}' : _descriptionController.text.trim(),
           'image': imageUrl,
           'images': [imageUrl],
           'location': _locationController.text.trim(),
@@ -167,7 +169,7 @@ class _ListProductScreenState extends State<ListProductScreen> {
           title: _titleController.text.trim(),
           price: double.parse(_priceController.text.trim()),
           category: _selectedCategory,
-          description: _descriptionController.text.trim(),
+          description: _selectedCondition == 'Refurbished' ? '${_descriptionController.text.trim()}\n\nReason for selling: ${_reasonController.text.trim()}' : _descriptionController.text.trim(),
           image: imageUrl,
           images: [imageUrl],
           sellerId: widget.currentUser.id,
@@ -246,6 +248,9 @@ class _ListProductScreenState extends State<ListProductScreen> {
               const SizedBox(height: 8),
               _buildDropdown(_conditions, _selectedCondition, (v) => setState(() => _selectedCondition = v!)),
               const SizedBox(height: 16),
+
+              if (_selectedCondition == 'Refurbished')
+                _buildField("Why are u selling this?", _reasonController, "e.g. bought a new one", maxLines: 2),
 
               _buildField("Description", _descriptionController, "Tell us more about the item...", maxLines: 3),
               _buildField("Location", _locationController, "e.g. Hostel 4 or Main Gate"),

@@ -130,7 +130,7 @@ class FoodItem {
   }
 }
 
-enum OrderStatus { new_order, confirmed, delivered, cancelled }
+enum OrderStatus { new_order, confirmed, preparing, ready_for_pickup, delivered, cancelled }
 
 class FoodOrder {
   final String id;
@@ -144,6 +144,7 @@ class FoodOrder {
   final double totalAmount;
   final OrderStatus status;
   final DateTime createdAt;
+  final DateTime? updatedAt;
 
   final int? dailyOrderNumber;
 
@@ -159,6 +160,7 @@ class FoodOrder {
     required this.totalAmount,
     required this.status,
     required this.createdAt,
+    this.updatedAt,
     this.dailyOrderNumber,
   });
 
@@ -181,6 +183,7 @@ class FoodOrder {
         orElse: () => OrderStatus.new_order,
       ),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
+      updatedAt: data['updatedAt'] != null ? (data['updatedAt'] as Timestamp).toDate() : null,
       dailyOrderNumber: data['dailyOrderNumber'],
     );
   }
@@ -197,6 +200,7 @@ class FoodOrder {
       'totalAmount': totalAmount,
       'status': status.toString().split('.').last,
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
       'dailyOrderNumber': dailyOrderNumber,
     };
   }
@@ -228,4 +232,12 @@ class OrderItem {
       'price': price,
     };
   }
+}
+
+class CartEntry {
+  final FoodItem item;
+  final FoodShop shop;
+  int quantity;
+  
+  CartEntry({required this.item, required this.shop, this.quantity = 1});
 }
