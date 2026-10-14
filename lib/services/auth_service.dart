@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
+import '../main.dart' show navigatorKey;
+import '../screens/auth/auth_gate.dart';
 
 class AuthService {
   AuthService._();
@@ -168,8 +170,18 @@ class AuthService {
       } catch (_) {} // Ignore if offline or doc doesn't exist
     }
     
-    await _googleSignIn.signOut();
-    await _auth.signOut();
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
+    try {
+      await _auth.signOut();
+    } catch (_) {}
+
+    // Cleanly reset the navigation stack back to AuthGate so user sees WelcomeScreen
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthGate()),
+      (route) => false,
+    );
   }
 
   Future<void> updateUserProfile(AppUser user) async {

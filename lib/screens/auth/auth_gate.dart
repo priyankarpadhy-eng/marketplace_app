@@ -14,19 +14,21 @@ class AuthGate extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userState = ref.watch(userProvider);
-
-    if (userState.isLoading) {
-      return const SplashScreen();
-    }
-
     final user = FirebaseAuth.instance.currentUser;
 
+    // 1. If not authenticated, immediately show WelcomeScreen
     if (user == null) {
       return const WelcomeScreen();
     }
 
+    // 2. Email verification check
     if (!user.emailVerified && !user.isAnonymous) {
       return VerifyEmailScreen(user: user);
+    }
+
+    // 3. Wait for Firestore profile to finish loading
+    if (userState.isLoading || userState.currentUser == null) {
+      return const SplashScreen();
     }
 
     final currentUser = userState.currentUser!;
@@ -34,7 +36,7 @@ class AuthGate extends ConsumerWidget {
         currentUser.isApprovedVerification ||
         currentUser.isPendingVerification;
 
-    // User must do EITHER phone number verification OR student ID document upload
+    // 4. User must complete EITHER phone number verification OR student ID document upload
     if (!hasCompletedEitherVerification) {
       return WhatsAppPhoneVerificationScreen(currentUser: currentUser);
     }

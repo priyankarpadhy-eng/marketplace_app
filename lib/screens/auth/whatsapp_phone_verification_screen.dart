@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/app_user.dart';
 import '../../providers/user_provider.dart';
@@ -13,7 +12,7 @@ import '../../services/storage_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
 import '../../theme/app_theme.dart';
-import '../main_layout.dart';
+import 'auth_gate.dart';
 
 class WhatsAppPhoneVerificationScreen extends ConsumerStatefulWidget {
   final AppUser currentUser;
@@ -179,9 +178,8 @@ class _WhatsAppPhoneVerificationScreenState
       await ref.read(userProvider.notifier).refreshUser();
 
       if (mounted) {
-        final updatedUser = ref.read(userProvider).currentUser ?? widget.currentUser;
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => MainLayout(currentUser: updatedUser)),
+          MaterialPageRoute(builder: (_) => const AuthGate()),
           (route) => false,
         );
       }
@@ -316,7 +314,7 @@ class _WhatsAppPhoneVerificationScreenState
       );
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => MainLayout(currentUser: updatedUser)),
+        MaterialPageRoute(builder: (_) => const AuthGate()),
         (route) => false,
       );
     } catch (e) {
@@ -331,7 +329,7 @@ class _WhatsAppPhoneVerificationScreenState
   }
 
   Future<void> _handleSignOut() async {
-    await FirebaseAuth.instance.signOut();
+    await AuthService.instance.signOut();
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
