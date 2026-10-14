@@ -10,11 +10,8 @@ import '../../providers/user_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../models/app_user.dart';
 import '../../models/marketplace_item.dart';
-import '../../models/bike_rental_model.dart';
 import '../../services/marketplace_service.dart';
-import '../../services/bike_rental_service.dart';
 import '../list_product_screen.dart';
-import '../add_bike_screen.dart';
 
 class ShopConsoleScreen extends ConsumerStatefulWidget {
   const ShopConsoleScreen({super.key});
@@ -26,7 +23,6 @@ class ShopConsoleScreen extends ConsumerStatefulWidget {
 class _ShopConsoleScreenState extends ConsumerState<ShopConsoleScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final MarketplaceService _marketService = MarketplaceService();
-  final BikeRentalService _bikeService = BikeRentalService();
 
   @override
   void initState() {
@@ -53,7 +49,7 @@ class _ShopConsoleScreenState extends ConsumerState<ShopConsoleScreen> with Sing
         backgroundColor: AppTheme.surface(isDark),
         foregroundColor: AppTheme.textPrimary(isDark),
         elevation: 0,
-        title: Text("My Listings & Requests", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        title: Text("My Listings", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.orange,
@@ -62,7 +58,7 @@ class _ShopConsoleScreenState extends ConsumerState<ShopConsoleScreen> with Sing
           labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15),
           tabs: const [
             Tab(text: "Listings"),
-            Tab(text: "Requests"),
+            Tab(text: "Orders"),
           ],
         ),
       ),
@@ -70,7 +66,7 @@ class _ShopConsoleScreenState extends ConsumerState<ShopConsoleScreen> with Sing
         controller: _tabController,
         children: [
           _buildListingsTab(context, user, isDark),
-          _buildRequestsTab(context, user, isDark),
+          const Center(child: Text("No orders yet")),
         ],
       ),
     );
@@ -92,17 +88,6 @@ class _ShopConsoleScreenState extends ConsumerState<ShopConsoleScreen> with Sing
                   Colors.blue,
                   isDark,
                   () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListProductScreen(currentUser: user))),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildActionCard(
-                  "Rent Bike",
-                  "List Bike Rental",
-                  FontAwesomeIcons.motorcycle,
-                  Colors.orange,
-                  isDark,
-                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddBikeScreen(currentUser: user))),
                 ),
               ),
             ],
@@ -127,27 +112,6 @@ class _ShopConsoleScreenState extends ConsumerState<ShopConsoleScreen> with Sing
                 itemBuilder: (context, index) {
                   final item = items[index];
                   return _buildMarketplaceItemTile(item, isDark);
-                },
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          Text("My Rental Bikes", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          StreamBuilder<List<BikeListing>>(
-            stream: _bikeService.getShopBikes(user.id),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              final bikes = snapshot.data ?? [];
-              if (bikes.isEmpty) return const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text("No bikes listed yet."));
-              
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: bikes.length,
-                itemBuilder: (context, index) {
-                  final bike = bikes[index];
-                  return _buildBikeItemTile(bike, isDark);
                 },
               );
             },
@@ -198,129 +162,7 @@ class _ShopConsoleScreenState extends ConsumerState<ShopConsoleScreen> with Sing
     );
   }
 
-  Widget _buildBikeItemTile(BikeListing bike, bool isDark) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: AppTheme.surface(isDark),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Container(
-          width: 50, height: 50,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            image: bike.images.isNotEmpty ? DecorationImage(image: CachedNetworkImageProvider(bike.images.first), fit: BoxFit.cover) : null,
-          ),
-          child: bike.images.isEmpty ? const Icon(Icons.motorcycle) : null,
-        ),
-        title: Text(bike.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("₹${bike.pricePerHour}/hr • ${bike.isAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}"),
-        trailing: PopupMenuButton<String>(
-          onSelected: (val) {
-            if (val == 'delete') {
-              _bikeService.deleteBike(bike.id);
-            } else if (val == 'edit') {
-              final user = ref.read(userProvider).currentUser;
-              if (user != null) {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => AddBikeScreen(currentUser: user, editBike: bike)));
-              }
-            } else {
-              _bikeService.updateBikeAvailability(bike.id, val == 'available');
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: 'available', child: Text("Set Available")),
-            const PopupMenuItem(value: 'unavailable', child: Text("Set Unavailable")),
-            const PopupMenuItem(value: 'edit', child: Text("Edit Details")),
-            const PopupMenuItem(value: 'delete', child: Text("Delete Bike", style: TextStyle(color: Colors.red))),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildRequestsTab(BuildContext context, AppUser user, bool isDark) {
-    return StreamBuilder<List<RentalRequest>>(
-      stream: _bikeService.getShopRequests(user.id),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final requests = snapshot.data ?? [];
-        if (requests.isEmpty) {
-          return const Center(child: Text("No rental requests yet"));
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: requests.length,
-          itemBuilder: (context, index) {
-            final request = requests[index];
-            return _buildRequestCard(request, isDark);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildRequestCard(RentalRequest request, bool isDark) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceAlt(isDark),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border(isDark)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(request.bikeTitle, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
-              _buildStatusBadge(request.status),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text("Renter: ${request.renterName}", style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark))),
-          Text("Duration: ${request.durationHours} hrs", style: GoogleFonts.outfit(color: AppTheme.textSecondary(isDark))),
-          Text("Amount: ₹${request.totalAmount.toStringAsFixed(2)}", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.orange)),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => launchUrl(Uri.parse("tel:${request.renterPhone}")),
-                icon: const Icon(Icons.phone, color: Colors.green),
-              ),
-              const Spacer(),
-              if (request.status == 'pending') ...[
-                TextButton(
-                  onPressed: () => _bikeService.updateRequestStatus(request.id, 'declined'),
-                  child: const Text("Decline", style: TextStyle(color: Colors.red)),
-                ),
-                ElevatedButton(
-                  onPressed: () => _bikeService.updateRequestStatus(request.id, 'approved'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                  child: const Text("Approve"),
-                ),
-              ]
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status) {
-    Color color = Colors.orange;
-    if (status == 'approved') color = Colors.green;
-    if (status == 'declined') color = Colors.red;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-    );
-  }
 
   Widget _buildActionCard(String title, String sub, IconData icon, Color color, bool isDark, VoidCallback onTap) {
     return InkWell(

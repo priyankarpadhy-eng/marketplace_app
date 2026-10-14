@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/deep_link_service.dart';
 import '../models/ride.dart';
 import 'seat_visualization.dart';
+import 'id_card_dialog.dart';
 import '../theme/app_theme.dart';
 import 'dart:async';
 
@@ -254,13 +255,25 @@ class _RideCardState extends State<RideCard> with SingleTickerProviderStateMixin
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      widget.ride.organizerName,
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary(isDark),
-                      ),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.ride.organizerName,
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary(isDark),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => showIdCardDialog(context, widget.ride.organizerId),
+                          child: Icon(Icons.badge_rounded, size: 14, color: themeColor),
+                        ),
+                      ],
                     ),
                   ),
                   SeatVisualization(

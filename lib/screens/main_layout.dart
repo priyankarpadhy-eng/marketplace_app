@@ -9,15 +9,17 @@ import 'package:market_app/services/deep_link_service.dart';
 import 'package:market_app/services/notification_service.dart';
 import 'package:market_app/theme/app_theme.dart';
 
-import 'package:market_app/screens/social_home_screen.dart';
-import 'package:market_app/screens/marketplace_screen.dart';
 import 'package:market_app/screens/ride_feed_screen.dart';
+import 'package:market_app/screens/campus_radar_screen.dart';
 import 'package:market_app/screens/profile_screen.dart';
+import 'package:market_app/providers/user_provider.dart';
 
 import 'package:market_app/widgets/mini_player.dart';
-import 'package:market_app/providers/audio_provider.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 
+
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:market_app/widgets/verification_modal.dart';
 
 // ════════════════════════════════════════════════════════════════════
 class MainLayout extends ConsumerStatefulWidget {
@@ -40,7 +42,23 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       DeepLinkService.instance.init(context, ref);
       NotificationService.instance.setupPushNotifications(widget.currentUser.id);
+      _checkVerificationPrompt();
     });
+  }
+
+  Future<void> _checkVerificationPrompt() async {
+    if (widget.currentUser.isDocumentVerified) return;
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeen = prefs.getBool('hasSeenVerificationPrompt_${widget.currentUser.id}') ?? false;
+    if (!hasSeen && mounted) {
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (mounted) {
+        final updated = await showVerificationModal(context, currentUser: widget.currentUser);
+        if (updated != null && mounted) {
+          ref.read(userProvider.notifier).refreshUser();
+        }
+      }
+    }
   }
 
   @override
@@ -52,12 +70,14 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final audioState = ref.watch(audioProvider);
+
+    final userState = ref.watch(userProvider);
+    final currentUser = userState.currentUser ?? widget.currentUser;
 
     final List<Widget> pages = [
-      MarketplaceScreen(currentUser: widget.currentUser),
-      RideFeedScreen(currentUser: widget.currentUser),
-      ProfileScreen(currentUser: widget.currentUser),
+      RideFeedScreen(currentUser: currentUser),
+      CampusRadarScreen(currentUser: currentUser),
+      ProfileScreen(currentUser: currentUser),
     ];
 
     return Scaffold(
@@ -120,8 +140,8 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                       child: GNav(
                         gap: 8,
                         activeColor: isDark ? Colors.white : Colors.black87,
-                        iconSize: 26, // Bigger icons
-                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14), // Slightly narrower navbar
+                        iconSize: 24,
+                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                         duration: const Duration(milliseconds: 300),
                         tabBackgroundColor: isDark ? Colors.white12 : Colors.grey[200]!, // Adapts to theme
                         color: isDark ? Colors.white54 : Colors.black54,
@@ -131,13 +151,16 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                         ),
                         tabs: const [
                           GButton(
-                            icon: FontAwesomeIcons.bagShopping,
+                            icon: FontAwesomeIcons.carSide,
+                            iconSize: 24,
                           ),
                           GButton(
-                            icon: FontAwesomeIcons.carSide,
+                            icon: Icons.radar_rounded,
+                            iconSize: 29, // Enlarged to match FontAwesome visual weight
                           ),
                           GButton(
                             icon: FontAwesomeIcons.solidUser,
+                            iconSize: 24,
                           ),
                         ],
                         selectedIndex: _pageIndex,

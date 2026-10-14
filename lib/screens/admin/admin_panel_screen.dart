@@ -38,6 +38,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(userProvider).currentUser;
     final isFounder = user?.isFounder ?? false;
+    final isAdmin = user?.isAdmin ?? false;
 
     // Filter pages based on permissions
     final List<AdminPage> pages = [
@@ -46,7 +47,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
       AdminPage("Market", FontAwesomeIcons.shop, _buildMarketTab()),
       AdminPage("Flags", FontAwesomeIcons.flag, _buildManagementTab("Flagged Content", Icons.flag_rounded)),
       if (isFounder) AdminPage("User Roles", FontAwesomeIcons.userShield, _buildRoleManagerTab()),
-      if (isFounder) AdminPage("Verifications", FontAwesomeIcons.certificate, _buildShopVerificationsTab()),
+      if (isFounder || isAdmin) AdminPage("Verifications", FontAwesomeIcons.certificate, _buildVerificationsTab()),
       if (isFounder) AdminPage("Song Requests", FontAwesomeIcons.music, _buildSongRequestsTab()),
       if (isFounder) AdminPage("System", FontAwesomeIcons.gears, _buildSystemTab()),
     ];
@@ -61,11 +62,11 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: bgColor,
-      drawer: isMobile ? Drawer(child: _buildSidebar(pages, isDark, true)) : null,
+      drawer: isMobile ? Drawer(child: _buildSidebar(pages, isDark, true, isFounder)) : null,
       body: Row(
         children: [
           // Custom Sidebar (only on desktop)
-          if (!isMobile) _buildSidebar(pages, isDark, false),
+          if (!isMobile) _buildSidebar(pages, isDark, false, isFounder),
           
           // Main Content
           Expanded(
@@ -86,7 +87,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     );
   }
 
-  Widget _buildSidebar(List<AdminPage> pages, bool isDark, bool isDrawer) {
+  Widget _buildSidebar(List<AdminPage> pages, bool isDark, bool isDrawer, bool isFounder) {
     final width = isDrawer ? 280.0 : (_isSidebarCollapsed ? 80.0 : 260.0);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -120,7 +121,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
-                "FOUNDER CONSOLE",
+                isFounder ? "FOUNDER CONSOLE" : "ADMIN CONSOLE",
                 style: GoogleFonts.outfit(color: AppTheme.darkTextPrimary.withOpacity(0.38), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2),
               ),
             ),
@@ -441,9 +442,10 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     );
   }
 
-  Widget _buildShopVerificationsTab() {
+  Widget _buildVerificationsTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = AppTheme.surface(isDark);
+    final borderColor = AppTheme.border(isDark);
 
     return StreamBuilder<List<AppUser>>(
       stream: _adminService.watchPendingVerifications(),
@@ -476,7 +478,9 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
               children: [
                 FaIcon(FontAwesomeIcons.circleCheck, color: AppTheme.success, size: 48),
                 const SizedBox(height: 16),
-                Text("No pending verifications", style: GoogleFonts.outfit(fontSize: 18, color: AppTheme.textSecondary(isDark))),
+                Text("No pending verifications", style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark))),
+                const SizedBox(height: 6),
+                Text("All submitted student, alumni and shop documents have been reviewed.", style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 13)),
               ],
             ),
           );
@@ -486,91 +490,296 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
           padding: const EdgeInsets.all(24),
           itemCount: users.length,
           itemBuilder: (context, index) {
-            final shop = users[index];
+            final pendingUser = users[index];
+            final isShop = pendingUser.isShop || (pendingUser.shopImages.isNotEmpty) || (pendingUser.shopName != null && pendingUser.shopName!.isNotEmpty);
+            final hasDocImage = pendingUser.idCardImage != null && pendingUser.idCardImage!.isNotEmpty;
+
             return Container(
               margin: const EdgeInsets.only(bottom: 24),
               decoration: BoxDecoration(
                 color: surfaceColor,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.08), blurRadius: 10)],
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  )
+                ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Shop Images Carousel-like Grid
-                  if (shop.shopImages.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                  ],
-                  
-                  SizedBox(
-                    height: 180,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: shop.shopImages.length,
-                      itemBuilder: (context, imgIndex) => Container(
-                        width: 240,
-                        margin: const EdgeInsets.only(right: 12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          image: DecorationImage(
-                            image: CachedNetworkImageProvider(shop.shopImages[imgIndex]),
-                            fit: BoxFit.cover,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header row: Type Pill + Pending Status
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isShop ? const Color(0xFFF3E8FF) : (pendingUser.isAlumni ? const Color(0xFFE0E7FF) : const Color(0xFFEFF6FF)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            isShop ? 'SHOP APPLICATION' : (pendingUser.isAlumni ? 'ALUMNI VERIFICATION' : 'STUDENT VERIFICATION'),
+                            style: GoogleFonts.dmSans(
+                              color: isShop ? const Color(0xFF7E22CE) : (pendingUser.isAlumni ? const Color(0xFF4338CA) : const Color(0xFF1D4ED8)),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(shop.shopName ?? "Untitled Shop", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 22, color: AppTheme.textPrimary(isDark))),
-                                  Text("Owner: ${shop.name} • ${shop.email}", style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 13)),
-                                ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFD97706),
+                                  shape: BoxShape.circle,
+                                ),
                               ),
-                            ),
-                            _buildVerificationBadge('PENDING'),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        _buildInfoRow(Icons.location_on_outlined, shop.shopAddress ?? "No address", isDark),
-                        _buildInfoRow(Icons.phone_outlined, shop.phoneNumber, isDark),
-                        const SizedBox(height: 24),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        Text("Actions:", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.textSecondary(isDark))),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            _buildApprovalButton(
-                              label: "Approve Shop",
-                              icon: FontAwesomeIcons.circleCheck,
-                              color: AppTheme.success,
-                              onPressed: () => _approveShop(shop.id, ['marketplace', 'rental']),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 12),
-                        TextButton.icon(
-                          onPressed: () => _adminService.updateVerificationStatus(shop.id, isVerified: false, status: 'rejected'),
-                          icon: Icon(Icons.close, size: 16, color: AppTheme.error),
-                          label: Text("Reject Request", style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Pending Review',
+                                style: GoogleFonts.dmSans(
+                                  color: const Color(0xFFB45309),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+
+                    // User identity info
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppTheme.surfaceAlt(isDark),
+                          backgroundImage: pendingUser.profileImage != null ? CachedNetworkImageProvider(pendingUser.profileImage!) : null,
+                          child: pendingUser.profileImage == null
+                              ? Text(
+                                  pendingUser.name.isNotEmpty ? pendingUser.name[0].toUpperCase() : '?',
+                                  style: GoogleFonts.syne(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark)),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isShop ? (pendingUser.shopName ?? pendingUser.name) : pendingUser.name,
+                                style: GoogleFonts.syne(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textPrimary(isDark)),
+                              ),
+                              const SizedBox(height: 2),
+                              if (isShop && pendingUser.shopSellerName != null)
+                                Text('Owner: ${pendingUser.shopSellerName}', style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 12)),
+                              Text(pendingUser.email, style: TextStyle(color: AppTheme.textSecondary(isDark), fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Phone Number Highlight (The user explicitly requested this!)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.phone_outlined, size: 16, color: AppTheme.textSecondary(isDark)),
+                          const SizedBox(width: 10),
+                          Text('Contact Phone:', style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.textSecondary(isDark), fontWeight: FontWeight.w500)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              pendingUser.phoneNumber.isNotEmpty ? pendingUser.phoneNumber : 'Not provided',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: pendingUser.phoneNumber.isNotEmpty ? AppTheme.textPrimary(isDark) : AppTheme.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Document Preview Section
+                    if (!isShop && hasDocImage) ...[
+                      Text('Uploaded Verification Document:', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textSecondary(isDark))),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () => _showDocumentZoomDialog(context, pendingUser.idCardImage!, pendingUser.name),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            height: 200,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceAlt(isDark),
+                              border: Border.all(color: borderColor),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                CachedNetworkImage(
+                                  imageUrl: pendingUser.idCardImage!,
+                                  fit: BoxFit.contain,
+                                  width: double.infinity,
+                                  height: 200,
+                                  placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                                  errorWidget: (context, url, err) => Center(child: Text('Failed to load document image', style: TextStyle(color: AppTheme.textSecondary(isDark)))),
+                                ),
+                                Positioned(
+                                  bottom: 8,
+                                  right: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.7),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.zoom_in, color: Colors.white, size: 14),
+                                        const SizedBox(width: 4),
+                                        Text('Tap to inspect', style: GoogleFonts.dmSans(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else if (!isShop && !hasDocImage) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceAlt(isDark),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 18, color: AppTheme.textSecondary(isDark)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text('No document uploaded yet with this submission.', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary(isDark))),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (isShop && pendingUser.shopImages.isNotEmpty) ...[
+                      Text('Shop Photos:', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textSecondary(isDark))),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 160,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: pendingUser.shopImages.length,
+                          itemBuilder: (context, imgIndex) => Container(
+                            width: 220,
+                            margin: const EdgeInsets.only(right: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: borderColor),
+                              image: DecorationImage(
+                                image: CachedNetworkImageProvider(pendingUser.shopImages[imgIndex]),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              if (isShop) {
+                                await _approveShop(pendingUser.id, ['marketplace']);
+                              } else {
+                                await _adminService.updateVerificationStatus(pendingUser.id, isVerified: true, status: 'approved');
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Verified ${pendingUser.name} successfully!')),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF16A34A),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                            icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                            label: Text(
+                              isShop ? 'Approve Shop' : 'Verify & Approve',
+                              style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            await _adminService.updateVerificationStatus(pendingUser.id, isVerified: false, status: 'rejected');
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Verification rejected for ${pendingUser.name}')),
+                              );
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFDC2626),
+                            side: const BorderSide(color: Color(0xFFDC2626)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: const Icon(Icons.close_rounded, size: 16),
+                          label: Text('Reject', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -579,42 +788,69 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     );
   }
 
-  Widget _buildVerificationBadge(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: AppTheme.warning.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Text(status, style: TextStyle(color: AppTheme.warning, fontSize: 10, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String text, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: AppTheme.textSecondary(isDark)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: TextStyle(color: AppTheme.textPrimary(isDark), fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildApprovalButton({required String label, required IconData icon, required Color color, required VoidCallback onPressed}) {
-    return Expanded(
-      child: ElevatedButton.icon(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  void _showDocumentZoomDialog(BuildContext context, String imageUrl, String userName) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Document: $userName',
+                      style: GoogleFonts.syne(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: InteractiveViewer(
+                  minScale: 1.0,
+                  maxScale: 4.0,
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.contain,
+                    placeholder: (context, url) => const SizedBox(
+                      height: 250,
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (context, url, err) => const SizedBox(
+                      height: 200,
+                      child: Center(child: Text('Failed to load full image', style: TextStyle(color: Colors.white70))),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Pinch to zoom in or inspect document details',
+                style: GoogleFonts.dmSans(color: Colors.white60, fontSize: 11),
+              ),
+            ],
+          ),
         ),
-        icon: FaIcon(icon, size: 14),
-        label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
       ),
     );
   }
+
 
   Future<void> _approveShop(String uid, List<String> tags) async {
     await _adminService.approveShop(uid, tags);

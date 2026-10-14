@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/post.dart';
@@ -13,6 +12,7 @@ import '../../models/app_user.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../expandable_text.dart';
 import 'multi_image_carousel.dart';
+import '../id_card_dialog.dart';
 
 class FreelanceCard extends ConsumerWidget {
   final Post post;
@@ -163,24 +163,32 @@ class FreelanceCard extends ConsumerWidget {
                      return Row(
                        children: [
                          Expanded(
-                           child: Row(
-                             children: [
-                                CircleAvatar(
-                                 radius: 12,
-                                 backgroundColor: Colors.white12,
-                                 backgroundImage: post.authorAvatar != null ? CachedNetworkImageProvider(post.authorAvatar!) : null,
-                                 child: post.authorAvatar == null ? Text((post.authorNickname ?? post.authorName)[0], style: const TextStyle(fontSize: 10, color: Colors.white54)) : null,
-                               ),
-                               const SizedBox(width: 8),
-                               Flexible(
-                                 child: Text(
-                                   post.authorNickname ?? post.authorName, 
-                                   style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
-                                   overflow: TextOverflow.ellipsis,
-                                   maxLines: 1,
+                           child: GestureDetector(
+                             behavior: HitTestBehavior.opaque,
+                             onTap: () {
+                               if (post.authorId.isNotEmpty) {
+                                 showIdCardDialog(context, post.authorId);
+                               }
+                             },
+                             child: Row(
+                               children: [
+                                  CircleAvatar(
+                                   radius: 12,
+                                   backgroundColor: Colors.white12,
+                                   backgroundImage: post.authorAvatar != null ? CachedNetworkImageProvider(post.authorAvatar!) : null,
+                                   child: post.authorAvatar == null ? Text((post.authorNickname ?? post.authorName)[0], style: const TextStyle(fontSize: 10, color: Colors.white54)) : null,
                                  ),
-                               ),
-                             ],
+                                 const SizedBox(width: 8),
+                                 Flexible(
+                                   child: Text(
+                                     post.authorNickname ?? post.authorName, 
+                                     style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+                                     overflow: TextOverflow.ellipsis,
+                                     maxLines: 1,
+                                   ),
+                                 ),
+                               ],
+                             ),
                            ),
                          ),
                          const SizedBox(width: 8),

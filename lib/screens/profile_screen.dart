@@ -15,18 +15,16 @@ import 'package:market_app/screens/permission_manager_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:market_app/services/permission_service.dart';
 import 'package:market_app/screens/admin/admin_panel_screen.dart';
-import 'package:market_app/screens/auth/auth_gate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:market_app/models/marketplace_item.dart';
-import 'package:market_app/models/bike_rental_model.dart';
 import 'package:market_app/services/marketplace_service.dart';
-import 'package:market_app/services/bike_rental_service.dart';
 import 'package:market_app/screens/list_product_screen.dart';
-import 'package:market_app/screens/add_bike_screen.dart';
 import 'shop/shop_setup_screen.dart';
-import 'food/user_orders_history_screen.dart';
 import '../widgets/phone_verification_sheet.dart';
 import '../widgets/app_loader.dart';
+import '../widgets/verification_badge.dart';
+import '../widgets/verification_modal.dart';
+import '../widgets/id_card_dialog.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   final AppUser currentUser;
@@ -41,6 +39,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late AppUser _user;
   bool _isEditing = false;
   bool _isLoading = false;
+  double? _uploadProgress;
+  bool _isUploadingId = false;
 
   final _nicknameController = TextEditingController();
   final _passoutYearController = TextEditingController();
@@ -50,7 +50,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final StorageService _storageService = StorageService();
   final ImagePicker _picker = ImagePicker();
   final MarketplaceService _marketService = MarketplaceService();
-  final BikeRentalService _bikeService = BikeRentalService();
 
   @override
   void initState() {
@@ -81,6 +80,65 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture updated!')));
     } catch (e) {
       setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+    }
+  }
+
+  Future<void> _pickIdCard() async {
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark ? AppTheme.surfaceAlt(true) : AppTheme.surface(false),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded),
+              title: const Text('Take a picture'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    bool granted = false;
+    if (source == ImageSource.camera) {
+      granted = await PermissionService.requestCameraPermission(context);
+    } else {
+      granted = await PermissionService.requestGalleryPermission(context);
+    }
+    if (!granted) return;
+
+    final XFile? image = await _picker.pickImage(source: source);
+    if (image == null) return;
+
+    setState(() { _isUploadingId = true; _uploadProgress = 0.0; });
+    try {
+      final String url = await _storageService.uploadFile(
+        File(image.path), 
+        folder: 'id_cards',
+        onProgress: (progress) {
+          setState(() => _uploadProgress = progress);
+        },
+      );
+      final updatedUser = _user.copyWith(idCardImage: url);
+      await AuthService.instance.updateUserProfile(updatedUser);
+      setState(() {
+        _user = updatedUser;
+        _isUploadingId = false;
+        _uploadProgress = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ID Card uploaded successfully!')));
+    } catch (e) {
+      setState(() { _isUploadingId = false; _uploadProgress = null; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
     }
   }
@@ -167,6 +225,120 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   if (currentUser.isAdmin && !_isEditing) _buildAdminFounderCard(currentUser),
                   
                   const SizedBox(height: 24),
+                  Text("Verification", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark))),
+                  const SizedBox(height: 12),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        if (!isDark)
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          )
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            VerificationBadge(
+                              user: currentUser,
+                              size: VerificationBadgeSize.large,
+                            ),
+                            const Spacer(),
+                            if (currentUser.idCardImage != null && currentUser.idCardImage!.isNotEmpty)
+                              TextButton.icon(
+                                onPressed: () => showIdCardDialog(context, currentUser.id),
+                                icon: const Icon(Icons.visibility_outlined, size: 16),
+                                label: const Text('View Document'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: isDark ? Colors.white70 : const Color(0xFF475569),
+                                  textStyle: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          currentUser.isDocumentVerified
+                              ? 'Status verified as ${currentUser.isAlumni ? "Alumni" : "Student"}. Your verified tag is visible across rides, marketplace listings, and community posts.'
+                              : 'You are currently unverified. Verify your Student ID or Alumni proof to unlock verified status and increase trust across the campus community.',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 13,
+                            height: 1.5,
+                            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final updated = await showVerificationModal(context, currentUser: currentUser);
+                              if (updated != null && mounted) {
+                                setState(() => _user = updated);
+                                ref.read(userProvider.notifier).refreshUser();
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: currentUser.isDocumentVerified
+                                  ? (isDark ? Colors.white12 : const Color(0xFFF1F5F9))
+                                  : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                              foregroundColor: currentUser.isDocumentVerified
+                                  ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                                  : (isDark ? const Color(0xFF0F172A) : Colors.white),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              currentUser.isDocumentVerified ? 'Update Verification Document' : 'Verify Status Now',
+                              style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  Text("Communities", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark))),
+                  const SizedBox(height: 12),
+                  
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? AppTheme.surfaceAlt(isDark) : AppTheme.surface(isDark),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.border(isDark)),
+                      boxShadow: [
+                        if (!isDark) BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: const Icon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366)),
+                          title: const Text("Marketplace WhatsApp Group"),
+                          onTap: () { launchUrl(Uri.parse('https://chat.whatsapp.com/D8gagbKfTZIC5JbCusG5dr'), mode: LaunchMode.externalApplication); },
+                        ),
+                        Divider(height: 1, color: AppTheme.border(isDark)),
+                        ListTile(
+                          leading: const Icon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366)),
+                          title: const Text("Ride Sharing WhatsApp Group"),
+                          onTap: () { launchUrl(Uri.parse('https://chat.whatsapp.com/CtbkNZRKoJrEBZo2LLrB4p'), mode: LaunchMode.externalApplication); },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
                   Text("Settings", style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimary(isDark))),
                   const SizedBox(height: 12),
                   
@@ -188,21 +360,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                         Divider(height: 1, color: AppTheme.border(isDark)),
                         ListTile(
-                          leading: const Icon(FontAwesomeIcons.bowlFood, color: AppTheme.rideAccent),
-                          title: const Text("My Food Orders"),
-                          onTap: () { Navigator.push(context, MaterialPageRoute(builder: (_) => UserOrdersHistoryScreen(currentUser: currentUser))); },
-                        ),
-                        Divider(height: 1, color: AppTheme.border(isDark)),
-                        ListTile(
                           leading: Icon(isDark ? FontAwesomeIcons.sun : FontAwesomeIcons.moon),
                           title: Text(isDark ? "Switch to Light Mode" : "Switch to Dark Mode"),
                           onTap: () { themeNotifier.toggleTheme(!isDark); },
-                        ),
-                        Divider(height: 1, color: AppTheme.border(isDark)),
-                        ListTile(
-                          leading: const Icon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366)),
-                          title: const Text("Marketplace WhatsApp Group"),
-                          onTap: () { launchUrl(Uri.parse('https://chat.whatsapp.com/D8gagbKfTZIC5JbCusG5dr'), mode: LaunchMode.externalApplication); },
                         ),
                         Divider(height: 1, color: AppTheme.border(isDark)),
                         ListTile(
@@ -242,59 +402,76 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: isDark ? AppTheme.border(isDark) : AppTheme.rideAccent.withOpacity(0.2)),
                     ),
-                    child: Column(
+                    child: Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppTheme.rideAccent.withOpacity(0.2) : AppTheme.surface(isDark),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            "DEVELOPER",
-                            style: GoogleFonts.outfit(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: isDark ? AppTheme.primaryDark : AppTheme.rideAccent,
-                              letterSpacing: 1.5,
-                            ),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.asset(
+                            'assets/images/developer.jpg',
+                            width: 100,
+                            height: 140,
+                            fit: BoxFit.cover,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "Priyankar Padhy",
-                          style: GoogleFonts.outfit(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: AppTheme.textPrimary(isDark),
-                            letterSpacing: -0.5,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isDark ? AppTheme.rideAccent.withOpacity(0.2) : AppTheme.surface(isDark),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  "DEVELOPER",
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    color: isDark ? AppTheme.primaryDark : AppTheme.rideAccent,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                "Priyankar Padhy",
+                                style: GoogleFonts.outfit(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppTheme.textPrimary(isDark),
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "43rd Civil Engineering",
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppTheme.textSecondary(isDark) : AppTheme.rideAccent,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                                  _buildSocialButton(
+                                    icon: FontAwesomeIcons.instagram,
+                                    color: const Color(0xFFE4405F),
+                                    url: "https://www.instagram.com/priyamnkar?igsh=MW82OHp5NzBxZXRmdA==",
+                                  ),
+                                  const SizedBox(width: 16),
+                                  _buildSocialButton(
+                                    icon: FontAwesomeIcons.linkedinIn,
+                                    color: const Color(0xFF0A66C2),
+                                    url: "https://www.linkedin.com/in/priyankar-padhy-06aa3137a?utm_source=share_via&utm_content=profile&utm_medium=member_android",
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "43rd Civil Engineering",
-                          style: GoogleFonts.outfit(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? AppTheme.textSecondary(isDark) : AppTheme.rideAccent,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildSocialButton(
-                              icon: FontAwesomeIcons.instagram,
-                              color: const Color(0xFFE4405F),
-                              url: "https://www.instagram.com/priyamnkar?igsh=MW82OHp5NzBxZXRmdA==",
-                            ),
-                            const SizedBox(width: 16),
-                            _buildSocialButton(
-                              icon: FontAwesomeIcons.linkedinIn,
-                              color: const Color(0xFF0A66C2),
-                              url: "https://www.linkedin.com/in/priyankar-padhy-06aa3137a?utm_source=share_via&utm_content=profile&utm_medium=member_android",
-                            ),
-                          ],
                         ),
                       ],
                     ),
@@ -415,23 +592,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             child: Text('${user.branch} · ${user.passoutYear ?? ''}',
                               style: GoogleFonts.poppins(fontSize: 10, color: textColor, fontWeight: FontWeight.w600)),
                           ),
-                        if (user.phoneVerified)
-                          Container(
-                            margin: const EdgeInsets.only(top: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppTheme.success.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.verified_rounded, color: AppTheme.success, size: 12),
-                                const SizedBox(width: 4),
-                                Text('VERIFIED', style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.w900, color: AppTheme.success)),
-                              ],
-                            ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              VerificationBadge(
+                                user: user,
+                                size: VerificationBadgeSize.compact,
+                                onTap: () async {
+                                  final updated = await showVerificationModal(context, currentUser: user);
+                                  if (updated != null && mounted) {
+                                    setState(() => _user = updated);
+                                    ref.read(userProvider.notifier).refreshUser();
+                                  }
+                                },
+                              ),
+                              if (user.phoneVerified)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.success.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.phone_iphone_rounded, color: AppTheme.success, size: 11),
+                                      const SizedBox(width: 3),
+                                      Text('PHONE', style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.w800, color: AppTheme.success)),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
+                        ),
                       ],
                     ),
                   ),
@@ -452,8 +648,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 _buildGlassStatChip(user.id, 'posts', 'Posts', Icons.grid_on_rounded, cardBg),
                 const SizedBox(width: 8),
                 _buildGlassStatChip(user.id, 'listings', 'Listed', Icons.shopping_bag_rounded, cardBg),
-                const SizedBox(width: 8),
-                _buildGlassStatChip(user.id, 'bike_rentals', 'Bikes', Icons.motorcycle_rounded, cardBg),
               ]),
             ],
           ),
@@ -645,47 +839,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildRentalsTab(String userId, bool isDark) {
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.only(top: 8, left: 16, right: 16),
-          sliver: StreamBuilder<List<BikeListing>>(
-            stream: _bikeService.getShopBikes(userId),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()));
-              final bikes = snapshot.data ?? [];
-              if (bikes.isEmpty) return const SliverToBoxAdapter(child: Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No bikes listed yet"))));
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildBikeItemTile(bikes[index], isDark),
-                  childCount: bikes.length,
-                ),
-              );
-            },
-          ),
-        ),
-        const SliverPadding(padding: EdgeInsets.only(top: 24, left: 16), sliver: SliverToBoxAdapter(child: Text("Rental Requests", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
-        SliverPadding(
-          padding: const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 100),
-          sliver: StreamBuilder<List<RentalRequest>>(
-            stream: _bikeService.getShopRequests(userId),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()));
-              final requests = snapshot.data ?? [];
-              if (requests.isEmpty) return const SliverToBoxAdapter(child: Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No rental requests yet"))));
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildRequestCard(requests[index], isDark),
-                  childCount: requests.length,
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
+
   Widget _buildDeveloperCard() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
@@ -1094,122 +1248,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildBikeItemTile(BikeListing bike, bool isDark) {
-    final avail = bike.isAvailable;
-    const amber = Color(0xFFF59E0B);
-    const green = Color(0xFF10B981);
-    final ac = avail ? green : amber;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ac.withOpacity(0.25)),
-        boxShadow: [BoxShadow(color: ac.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: bike.images.isNotEmpty
-              ? CachedNetworkImage(imageUrl: bike.images.first, width: 52, height: 52, fit: BoxFit.cover)
-              : Container(
-                  width: 52, height: 52,
-                  decoration: BoxDecoration(color: amber.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.motorcycle_rounded, color: amber, size: 22),
-                ),
-        ),
-        title: Text(bike.title, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13)),
-        subtitle: Row(children: [
-          Text('₹${bike.pricePerHour}/hr', style: GoogleFonts.poppins(fontWeight: FontWeight.w800, color: amber, fontSize: 13)),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: ac.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-            child: Text(avail ? 'AVAILABLE' : 'UNAVAILABLE', style: TextStyle(color: ac, fontSize: 9, fontWeight: FontWeight.w800)),
-          ),
-        ]),
-        trailing: PopupMenuButton<String>(
-          onSelected: (val) {
-            if (val == 'delete') {
-              _bikeService.deleteBike(bike.id);
-            } else if (val == 'edit') {
-              final user = ref.read(userProvider).currentUser;
-              if (user != null) Navigator.push(context, MaterialPageRoute(builder: (_) => AddBikeScreen(currentUser: user, editBike: bike)));
-            } else {
-              _bikeService.updateBikeAvailability(bike.id, val == 'available');
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: 'available', child: Text("Set Available")),
-            const PopupMenuItem(value: 'unavailable', child: Text("Set Unavailable")),
-            const PopupMenuItem(value: 'edit', child: Text("Edit Details")),
-            const PopupMenuItem(value: 'delete', child: Text("Delete Bike", style: TextStyle(color: Colors.red))),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildRequestCard(RentalRequest request, bool isDark) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(request.bikeTitle, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
-              _buildStatusBadge(request.status),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text("Renter: ${request.renterName}", style: GoogleFonts.outfit(color: Colors.grey)),
-          Text("Duration: ${request.durationHours} hrs", style: GoogleFonts.outfit(color: Colors.grey)),
-          Text("Amount: ₹${request.totalAmount.toStringAsFixed(2)}", style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.orange)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => launchUrl(Uri.parse("tel:${request.renterPhone}")),
-                icon: const Icon(Icons.phone, color: Colors.green),
-              ),
-              const Spacer(),
-              if (request.status == 'pending') ...[
-                TextButton(
-                  onPressed: () => _bikeService.updateRequestStatus(request.id, 'declined'),
-                  child: const Text("Decline", style: TextStyle(color: Colors.red)),
-                ),
-                ElevatedButton(
-                  onPressed: () => _bikeService.updateRequestStatus(request.id, 'approved'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                  child: const Text("Approve"),
-                ),
-              ]
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status) {
-    Color color = Colors.orange;
-    if (status == 'approved') color = Colors.green;
-    if (status == 'declined') color = Colors.red;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-    );
-  }
 
   Widget _buildActionCard(String title, String sub, IconData icon, Color color, bool isDark, VoidCallback onTap) {
     return InkWell(

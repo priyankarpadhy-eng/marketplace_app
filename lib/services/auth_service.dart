@@ -1,19 +1,12 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
-import 'package:truecaller_sdk/truecaller_sdk.dart';
 
 import '../models/app_user.dart';
 
 class AuthService {
-  AuthService._() {
-    initializeTruecaller();
-  }
+  AuthService._();
 
   static final instance = AuthService._();
 
@@ -22,17 +15,6 @@ class AuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: '754932193228-47a6q2tnvuk52dh2p0cd834qe27594me.apps.googleusercontent.com',
   );
-
-  void initializeTruecaller() {
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      try {
-        TcSdk.initializeSDK(sdkOption: TcSdkOptions.OPTION_VERIFY_ONLY_TC_USERS);
-        debugPrint('Truecaller SDK Initialized successfully');
-      } catch (e) {
-        debugPrint('Failed to initialize Truecaller SDK: $e');
-      }
-    }
-  }
 
   Stream<User?> authStateChanges() {
     return _auth.authStateChanges();
@@ -58,7 +40,7 @@ class AuthService {
         return AppUser.fromMap(doc.id, {
           ...data,
           'role': role,
-          'phone_verified': true,
+          'phone_verified': (data['phone_verified'] == true) || (data['phoneVerified'] == true),
         });
       } else {
         return null;
@@ -202,87 +184,6 @@ class AuthService {
     }
   }
 
-  Future<void> verifyTruecaller({
-    required String authorizationCode,
-    required String codeVerifier,
-  }) async {
-    try {
-      debugPrint('==== TRUECALLER: Exchanging Authorization Code ====');
-      
-      // 1. Exchange authorization code for access token
-      final tokenResponse = await http.post(
-        Uri.parse('https://oauth-account-noneu.truecaller.com/v1/token'),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'grant_type': 'authorization_code',
-          'client_id': dotenv.env['TRUECALLER_CLIENT_ID'] ?? '_vzn6lro7sbnwgvgqtgkx3lyg2uv_l6ryfd-6qdnhwm',
-          'code': authorizationCode,
-          'code_verifier': codeVerifier,
-        },
-      );
-      
-      debugPrint('TRUECALLER TOKEN RESPONSE [${tokenResponse.statusCode}]: ${tokenResponse.body}');
-      
-      if (tokenResponse.statusCode != 200) {
-        throw Exception('Failed to exchange Truecaller token. Status: ${tokenResponse.statusCode}, Body: ${tokenResponse.body}');
-      }
-      
-      final tokenData = jsonDecode(tokenResponse.body);
-      final accessToken = tokenData['access_token'];
-      if (accessToken == null) {
-        throw Exception('Access token not found in Truecaller response');
-      }
-      
-      // 2. Fetch User Profile
-      final profileResponse = await http.get(
-        Uri.parse('https://oauth-account-noneu.truecaller.com/v1/userinfo'),
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-        },
-      );
-      
-      debugPrint('TRUECALLER PROFILE RESPONSE [${profileResponse.statusCode}]: ${profileResponse.body}');
-      
-      if (profileResponse.statusCode != 200) {
-        throw Exception('Failed to fetch Truecaller profile. Status: ${profileResponse.statusCode}, Body: ${profileResponse.body}');
-      }
-      
-      final profileData = jsonDecode(profileResponse.body);
-      final rawPhoneNumber = profileData['phone_number'] as String?;
-      if (rawPhoneNumber == null || rawPhoneNumber.isEmpty) {
-        throw Exception('Phone number not found in Truecaller profile');
-      }
-      
-      // Standardize phone number format (e.g. ensure starting with +)
-      var phoneNumber = rawPhoneNumber;
-      if (!phoneNumber.startsWith('+')) {
-        phoneNumber = '+$phoneNumber';
-      }
-      
-      debugPrint('TRUECALLER: Verified phone number is $phoneNumber');
-      
-      // 3. Update Firestore document
-      final user = _auth.currentUser;
-      if (user != null) {
-        try {
-          await _db.collection('users').doc(user.uid).update({
-            'phone_number': phoneNumber,
-            'phone_verified': true,
-          });
-        } catch (e) {
-          debugPrint('[FIRESTORE ERROR] Failed to update user doc. Attempting set...: $e');
-          await _db.collection('users').doc(user.uid).set({
-            'phone_number': phoneNumber,
-            'phone_verified': true,
-          }, SetOptions(merge: true));
-        }
-      }
-    } catch (e) {
-      debugPrint('[TRUECALLER ERROR] verifyTruecaller failed: $e');
-      rethrow;
-    }
-  }
-
   /// Updates the seller/shop name across all user's listings for data consistency
   Future<void> _syncUserListings(AppUser user) async {
     final nameToUse = user.role == 'shop' ? (user.shopName ?? user.name) : user.name;
@@ -294,30 +195,6 @@ class AuthService {
         'seller': nameToUse,
         'sellerName': nameToUse,
         'sellerAvatar': user.profileImage,
-      });
-    }
-
-    // Update Bike Listings
-    final bikeDocs = await _db.collection('bikes').where('shopId', isEqualTo: user.id).get();
-    for (var doc in bikeDocs.docs) {
-      await doc.reference.update({
-        'shopName': nameToUse,
-      });
-    }
-    
-    // Update Rental Requests (as renter)
-    final renterRequests = await _db.collection('rental_requests').where('renterId', isEqualTo: user.id).get();
-    for (var doc in renterRequests.docs) {
-      await doc.reference.update({
-        'renterName': user.name,
-      });
-    }
-
-    // Update Rental Requests (as shop owner - bikeTitle might have changed if we supported that, but here we just sync names)
-    final ownerRequests = await _db.collection('rental_requests').where('shopId', isEqualTo: user.id).get();
-    for (var doc in ownerRequests.docs) {
-      await doc.reference.update({
-        'shopName': user.shopName ?? user.name, // If we added shopName to RentalRequest model in future
       });
     }
   }

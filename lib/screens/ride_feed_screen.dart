@@ -10,6 +10,7 @@ import '../models/app_user.dart';
 import '../theme/app_theme.dart';
 import '../widgets/ride_how_it_works_card.dart';
 import '../widgets/app_loader.dart';
+import '../widgets/verification_modal.dart';
 
 class RideFeedScreen extends StatefulWidget {
   final AppUser currentUser;
@@ -31,7 +32,6 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _genderFilter = 'all';
   late Stream<List<Ride>> _ridesStream;
-  String _selectedTab = 'active'; // 'active' or 'past'
 
   @override
   void initState() {
@@ -63,31 +63,47 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
         child: Container(
           decoration: BoxDecoration(
             color: AppTheme.rideAccent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.rideAccent.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () {
+              borderRadius: BorderRadius.circular(14),
+              onTap: () async {
+                AppUser activeUser = widget.currentUser;
+                if (!activeUser.isDocumentVerified) {
+                  final updated = await showVerificationModal(context, currentUser: activeUser);
+                  if (updated != null) {
+                    activeUser = updated;
+                  }
+                }
+                
+                if (!context.mounted) return;
                 Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => CreateRideScreen(currentUser: widget.currentUser),
+                  builder: (_) => CreateRideScreen(currentUser: activeUser),
                 ));
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const FaIcon(FontAwesomeIcons.carSide, size: 15, color: Colors.white),
-                    const SizedBox(width: 10),
+                    const FaIcon(FontAwesomeIcons.carSide, size: 14, color: Colors.white),
+                    const SizedBox(width: 8),
                     Text(
                       'OFFER RIDE',
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.dmSans(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        letterSpacing: 1.2,
+                        fontSize: 12,
+                        letterSpacing: 1.0,
                       ),
                     ),
                   ],
@@ -190,6 +206,8 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
                               ],
                             ),
                           ),
+
+
                           // How it works button
                           GestureDetector(
                             onTap: () {
@@ -205,7 +223,7 @@ class _RideFeedScreenState extends State<RideFeedScreen> {
                               decoration: BoxDecoration(
                                 color: AppTheme.surface(isDark),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppTheme.rideAccent.withOpacity(0.5), width: 1.2),
+                                border: Border.all(color: AppTheme.rideAccent.withValues(alpha: 0.5), width: 1.2),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,

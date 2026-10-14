@@ -47,13 +47,12 @@ class UserNotifier extends Notifier<UserState> {
         var role = data['role']?.toString() ?? 'founder';
         if (role == 'user' || role == 'student') {
           role = 'founder';
-          FirebaseFirestore.instance.collection('users').doc(uid).update({'role': 'founder'});
         }
         state = UserState(
           currentUser: AppUser.fromMap(doc.id, {
             ...data,
             'role': role,
-            'phone_verified': true,
+            'phone_verified': (data['phone_verified'] == true) || (data['phoneVerified'] == true),
           }),
           isLoading: false,
         );

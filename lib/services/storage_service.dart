@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
+import 'package:dio/dio.dart' as dio;
 
 class StorageService {
   static const String _apiEndpoint = 'https://igitmarketplace.vercel.app/api/get-upload-url';
 
   /// Uploads a file to Cloudflare R2 using the same API as the website.
   /// Returns the public URL of the uploaded file.
-  Future<String> uploadFile(File file, {String folder = 'uploads'}) async {
+  Future<String> uploadFile(File file, {String folder = 'uploads', void Function(double)? onProgress}) async {
     try {
       final fileName = '${folder}/${DateTime.now().millisecondsSinceEpoch}-${path.basename(file.path)}';
       final contentType = _getContentType(file.path);
@@ -41,17 +42,41 @@ class StorageService {
       } catch (_) {}
 
       // 2. Upload the file directly to R2 using the pre-signed PutObject URL
-      final List<int> fileBytes = await file.readAsBytes();
-      final uploadResponse = await http.put(
-        Uri.parse(uploadUrl),
-        headers: {
-          'Content-Type': contentType,
-        },
-        body: fileBytes,
-      );
+      if (onProgress != null) {
+        final dioClient = dio.Dio();
+        final uploadResponse = await dioClient.put(
+          uploadUrl,
+          data: file.openRead(),
+          options: dio.Options(
+            headers: {
+              'Content-Type': contentType,
+              'Content-Length': file.lengthSync().toString(),
+            },
+            validateStatus: (status) => true,
+          ),
+          onSendProgress: (count, total) {
+            if (total > 0) {
+              onProgress(count / total);
+            }
+          },
+        );
 
-      if (uploadResponse.statusCode != 200) {
-        throw Exception('Cloudflare R2 upload failed with status ${uploadResponse.statusCode}');
+        if (uploadResponse.statusCode != 200) {
+          throw Exception('Cloudflare R2 upload failed with status ${uploadResponse.statusCode}');
+        }
+      } else {
+        final List<int> fileBytes = await file.readAsBytes();
+        final uploadResponse = await http.put(
+          Uri.parse(uploadUrl),
+          headers: {
+            'Content-Type': contentType,
+          },
+          body: fileBytes,
+        );
+
+        if (uploadResponse.statusCode != 200) {
+          throw Exception('Cloudflare R2 upload failed with status ${uploadResponse.statusCode}');
+        }
       }
 
       return publicUrl;

@@ -14,6 +14,8 @@ import '../expandable_text.dart';
 import '../cached_video_player.dart';
 import 'multi_image_carousel.dart';
 
+import '../id_card_dialog.dart';
+
 class StandardCard extends ConsumerWidget {
   final Post post;
   final String currentUserId;
@@ -56,50 +58,64 @@ class StandardCard extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
             child: Row(
               children: [
-                // Avatar
-                Container(
-                  padding: const EdgeInsets.all(1.5),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.border(isDark), width: 1),
-                  ),
-                  child: CircleAvatar(
-                    radius: 19,
-                    backgroundColor: AppTheme.surfaceAlt(isDark),
-                    backgroundImage: post.authorAvatar != null
-                        ? CachedNetworkImageProvider(post.authorAvatar!)
-                        : null,
-                    child: post.authorAvatar == null
-                        ? Text(
-                            post.authorName[0].toUpperCase(),
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.accent(isDark),
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Name + time
+                // Avatar & Author info (tap to inspect ID card / verification docs)
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        post.authorNickname ?? post.authorName,
-                        style: GoogleFonts.roboto(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: AppTheme.textPrimary(isDark),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      if (post.tag != 'Confession' && post.authorId.isNotEmpty) {
+                        showIdCardDialog(context, post.authorId);
+                      }
+                    },
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(1.5),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppTheme.border(isDark), width: 1),
+                          ),
+                          child: CircleAvatar(
+                            radius: 19,
+                            backgroundColor: AppTheme.surfaceAlt(isDark),
+                            backgroundImage: post.authorAvatar != null
+                                ? CachedNetworkImageProvider(post.authorAvatar!)
+                                : null,
+                            child: post.authorAvatar == null
+                                ? Text(
+                                    post.authorName.isNotEmpty ? post.authorName[0].toUpperCase() : '?',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.accent(isDark),
+                                    ),
+                                  )
+                                : null,
+                          ),
                         ),
-                      ),
-                      Text(
-                        DateFormat('d MMM · h:mm a').format(post.createdAt),
-                        style: TextStyle(fontSize: 11, color: AppTheme.textSecondary(isDark)),
-                      ),
-                    ],
+                        const SizedBox(width: 10),
+                        // Name + time
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                post.authorNickname ?? post.authorName,
+                                style: GoogleFonts.roboto(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: AppTheme.textPrimary(isDark),
+                                ),
+                              ),
+                              Text(
+                                DateFormat('d MMM · h:mm a').format(post.createdAt),
+                                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary(isDark)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 // Tag chip

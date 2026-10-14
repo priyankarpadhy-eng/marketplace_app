@@ -5,7 +5,6 @@ A modern, full-stack Flutter application combining Ride Sharing and Food Deliver
 ## 🚀 Features
 
 - **Ride Sharing**: Offer or find rides with advanced filtering (by gender, location, active/past).
-- **Food Delivery**: Browse restaurants, filter by cuisine (Biriyani, Rice, Roti, Noodles), and view shop menus.
 - **Dynamic Theming**: Full support for system and user-toggled dark and light modes, built with a premium aesthetic design system.
 - **Image Caching**: Optimized network image caching (`cached_network_image`) for smooth, jitter-free scrolling.
 - **Real-time Backend**: Integrated with Firebase for authentication, firestore data, and scalable infrastructure.
@@ -27,7 +26,6 @@ graph TD
     subgraph UI Layer
         Marketplace[Marketplace Screen]:::ui
         RideFeed[Ride Feed Screen]:::ui
-        FoodShop[Food Shop List]:::ui
         Profile[User Profile]:::ui
     end
 
@@ -35,7 +33,6 @@ graph TD
         AppTheme[Theme Engine]:::ui
         AuthService[Auth Service]:::backend
         RideService[Ride Service]:::backend
-        FoodService[Food Service]:::backend
     end
 
     subgraph Firebase Backend
@@ -47,11 +44,9 @@ graph TD
     %% Connections
     Client --> Marketplace
     Marketplace --> RideFeed
-    Marketplace --> FoodShop
     Marketplace --> Profile
 
     RideFeed --> RideService
-    FoodShop --> FoodService
     Profile --> AuthService
     
     Marketplace --> AppTheme
@@ -59,8 +54,6 @@ graph TD
 
     AuthService --> Auth
     RideService --> Firestore
-    FoodService --> Firestore
-    FoodService --> Storage
 ```
 
 ---

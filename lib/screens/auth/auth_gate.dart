@@ -1,76 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../providers/user_provider.dart';
 import '../main_layout.dart';
-import 'login_screen.dart';
+import 'welcome_screen.dart';
 import 'verify_email_screen.dart';
+import 'whatsapp_phone_verification_screen.dart';
 import '../splash_screen.dart';
-import '../auth/onboarding_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-class AuthGate extends ConsumerStatefulWidget {
+class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
-  ConsumerState<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends ConsumerState<AuthGate> {
-  bool _hasSeenOnboarding = false;
-  bool _onboardingChecked = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkOnboardingStatus();
-  }
-
-  Future<void> _checkOnboardingStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasSeen = false; // Temporarily forced to false so you can see the new design
-    if (mounted) {
-      setState(() {
-        _hasSeenOnboarding = hasSeen;
-        _onboardingChecked = true;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final userState = ref.watch(userProvider);
 
-    if (userState.isLoading || !_onboardingChecked) {
+    if (userState.isLoading) {
       return const SplashScreen();
-    }
-
-    if (!_hasSeenOnboarding) {
-      return OnboardingScreen(
-        markOnboardingSeen: () {
-          if (mounted) {
-            setState(() {
-              _hasSeenOnboarding = true;
-            });
-          }
-        },
-      );
     }
 
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return const LoginScreen();
+      return const WelcomeScreen();
     }
 
     if (!user.emailVerified && !user.isAnonymous) {
       return VerifyEmailScreen(user: user);
     }
 
-    if (userState.currentUser == null) {
-      return const SplashScreen();
+    final currentUser = userState.currentUser!;
+    final hasCompletedEitherVerification = currentUser.phoneVerified ||
+        currentUser.isApprovedVerification ||
+        currentUser.isPendingVerification;
+
+    // User must do EITHER phone number verification OR student ID document upload
+    if (!hasCompletedEitherVerification) {
+      return WhatsAppPhoneVerificationScreen(currentUser: currentUser);
     }
 
-    return MainLayout(currentUser: userState.currentUser!);
+    return MainLayout(currentUser: currentUser);
   }
 }
+

@@ -8,6 +8,9 @@ import '../theme/app_theme.dart';
 import '../providers/user_provider.dart';
 import '../services/marketplace_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
+import '../widgets/id_card_dialog.dart';
 import 'list_product_screen.dart';
 
 const _kPrimary = Color(0xFF7C3AED);
@@ -70,6 +73,17 @@ class ListingDetailScreen extends ConsumerWidget {
 
                   // ── Image gallery ──────────────────────────────
                   _ImageGallery(images: images),
+
+                  if (item.videoUrl != null && item.videoUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: _VideoPlayerWidget(videoUrl: item.videoUrl!),
+                      ),
+                    ),
+                  ],
 
                   // ── Risk banner ────────────────────────────────
                   Container(
@@ -163,6 +177,63 @@ class ListingDetailScreen extends ConsumerWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 13.5, color: textSecondary, height: 1.65)),
                         const SizedBox(height: 24),
+
+                        if (item.sellingReason != null && item.sellingReason!.isNotEmpty) ...[
+                          _SectionTitle(title: 'Why are they selling this?', isDark: isDark),
+                          const SizedBox(height: 8),
+                          Text(item.sellingReason!,
+                            style: GoogleFonts.poppins(fontSize: 13.5, color: textSecondary, height: 1.65)),
+                          const SizedBox(height: 24),
+                        ],
+
+                        if (item.buyingReason != null && item.buyingReason!.isNotEmpty) ...[
+                          _SectionTitle(title: 'Why should you buy this?', isDark: isDark),
+                          const SizedBox(height: 8),
+                          Text(item.buyingReason!,
+                            style: GoogleFonts.poppins(fontSize: 13.5, color: textSecondary, height: 1.65)),
+                          const SizedBox(height: 24),
+                        ],
+
+                        if (item.proofImage != null && item.proofImage!.isNotEmpty) ...[
+                          _SectionTitle(title: 'Proof of Purchase', isDark: isDark),
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: () {
+                              showDialog(context: context, builder: (_) => Dialog(
+                                backgroundColor: Colors.transparent,
+                                insetPadding: EdgeInsets.zero,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    InteractiveViewer(
+                                      child: CachedNetworkImage(imageUrl: item.proofImage!),
+                                    ),
+                                    Positioned(top: 40, right: 20, child: IconButton(
+                                      icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                                      onPressed: () => Navigator.pop(context),
+                                    )),
+                                  ],
+                                ),
+                              ));
+                            },
+                            child: Container(
+                              height: 100, width: 100,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _kPrimary.withOpacity(0.3)),
+                                image: DecorationImage(image: CachedNetworkImageProvider(item.proofImage!), fit: BoxFit.cover),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                  child: const Icon(Icons.zoom_in, color: Colors.white, size: 20),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
 
                         // ── Specifications ─────────────────────
                         _SectionTitle(title: 'Specifications', isDark: isDark),
@@ -334,20 +405,41 @@ class _SellerCard extends StatelessWidget {
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(item.sellerName,
-              style: GoogleFonts.poppins(
-                fontSize: 15, fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : const Color(0xFF1A1A2E))),
-            const SizedBox(height: 2),
-            Row(children: [
-              const Icon(Icons.verified_rounded, size: 13, color: Color(0xFF3B82F6)),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text('Verified Campus Seller • Number Verified',
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF3B82F6))),
+            Row(
+              children: [
+                Flexible(
+                  child: Text(item.sellerName,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15, fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF1A1A2E))),
+                ),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () => showIdCardDialog(context, item.sellerId),
+                  child: const Icon(Icons.badge_rounded, size: 16, color: _kPrimary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () => showIdCardDialog(context, item.sellerId),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.verified_user_outlined, size: 13, color: Color(0xFF6366F1)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'View Campus Verification Status',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF6366F1),
+                    ),
+                  ),
+                ],
               ),
-            ]),
+            ),
           ]),
         ),
         // Location chip
@@ -686,5 +778,70 @@ class _ImageGalleryState extends State<_ImageGallery> {
           ),
         ),
     ]);
+  }
+}
+
+// ── Video Player ─────────────────────────────────────────────────────────────
+class _VideoPlayerWidget extends StatefulWidget {
+  final String videoUrl;
+  const _VideoPlayerWidget({required this.videoUrl});
+  @override
+  State<_VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<_VideoPlayerWidget> {
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePlayer();
+  }
+
+  Future<void> _initializePlayer() async {
+    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+    await _videoPlayerController.initialize();
+    _chewieController = ChewieController(
+      videoPlayerController: _videoPlayerController,
+      autoPlay: false,
+      looping: false,
+      aspectRatio: _videoPlayerController.value.aspectRatio,
+      materialProgressColors: ChewieProgressColors(
+        playedColor: _kPrimary,
+        handleColor: _kPrimary,
+        backgroundColor: Colors.grey.shade800,
+        bufferedColor: Colors.grey.shade400,
+      ),
+    );
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_chewieController != null && _chewieController!.videoPlayerController.value.isInitialized) {
+      return Container(
+        color: Colors.black,
+        child: AspectRatio(
+          aspectRatio: _videoPlayerController.value.aspectRatio,
+          child: Chewie(controller: _chewieController!),
+        ),
+      );
+    } else {
+      return Container(
+        color: Colors.black,
+        child: const AspectRatio(
+          aspectRatio: 16/9,
+          child: Center(child: CircularProgressIndicator(color: _kPrimary)),
+        ),
+      );
+    }
   }
 }

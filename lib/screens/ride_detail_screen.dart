@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/app_user.dart';
 import '../models/ride.dart';
 import '../services/ride_service.dart';
 import '../services/auth_service.dart';
-import 'package:google_fonts/google_fonts.dart';
-import '../widgets/ride_card.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../services/deep_link_service.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:slide_to_act/slide_to_act.dart' as slide_to_act;
 import '../theme/app_theme.dart';
+import '../widgets/id_card_dialog.dart';
+import '../widgets/verification_badge.dart';
+import 'ride_chat_screen.dart';
 
 class RideDetailScreen extends StatelessWidget {
   final Ride ride;
@@ -27,336 +31,605 @@ class RideDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = RideService();
     final isOrganizer = ride.organizerId == currentUser.id;
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? Colors.white12 : const Color(0xFFE2E8F0);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSecondary = isDark ? Colors.white60 : const Color(0xFF64748B);
+
+    final isPast = ride.departureTime.isBefore(DateTime.now());
+    final isCancelled = ride.status == 'cancelled';
+
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: cardBg,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: Text('${ride.from} → ${ride.to}', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary, fontSize: 18)),
-        iconTheme: IconThemeData(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
+        iconTheme: IconThemeData(color: textPrimary),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ride Details',
+              style: GoogleFonts.syne(fontSize: 18, fontWeight: FontWeight.bold, color: textPrimary),
+            ),
+            Text(
+              '#${ride.rideNumber} · Split & Share',
+              style: GoogleFonts.dmSans(fontSize: 11, color: textSecondary),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: Icon(Icons.share_outlined, color: AppTheme.rideAccent),
+            icon: const Icon(Icons.share_outlined, size: 20),
             onPressed: () => DeepLinkService.shareRide(ride),
             tooltip: 'Share Ride',
           ),
-          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RideChatScreen(ride: ride, currentUser: currentUser),
+                ),
+              );
+            },
+            tooltip: 'Ride Chat',
+          ),
+          const SizedBox(width: 6),
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: service.watchParticipants(ride.id),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading participants: ${snapshot.error}'));
-          }
-          
-          final docs = snapshot.data ?? [];
-          final isInParticipantList = docs.any((d) => d['user_id'] == currentUser.id);
-          final isViewingOwnRide = ride.organizerId == currentUser.id;
-          final canSeeContacts = isInParticipantList || isViewingOwnRide;
 
-          return CustomScrollView(
-            slivers: [
-              // 1. Ride Card
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: RideCard(ride: ride, onTap: null),
+          final participants = snapshot.data ?? [];
+          final isInParticipantList = participants.any((d) => d['user_id'] == currentUser.id);
+          final canSeeContacts = isInParticipantList || isOrganizer;
+          final seatsRemaining = (ride.totalSeats - participants.length).clamp(0, ride.totalSeats);
+
+          return Stack(
+            children: [
+              ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                children: [
+                  // 1. Route Visualizer Card
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
                     ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Status Pill + Gender Badge
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isCancelled
+                                    ? const Color(0xFFFEE2E2)
+                                    : (isPast
+                                        ? (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9))
+                                        : const Color(0xFFDCFCE7)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                isCancelled ? 'CANCELLED' : (isPast ? 'COMPLETED' : 'ACTIVE RIDE'),
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: isCancelled
+                                      ? const Color(0xFFB91C1C)
+                                      : (isPast
+                                          ? (isDark ? Colors.white70 : const Color(0xFF475569))
+                                          : const Color(0xFF15803D)),
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: Text(
+                                ride.genderPreference == 'female'
+                                    ? 'Female Only'
+                                    : (ride.genderPreference == 'male' ? 'Male Only' : 'Mixed Genders'),
+                                style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, color: textSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Route visual flow
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              children: [
+                                const Icon(Icons.trip_origin_rounded, size: 18, color: Color(0xFF16A34A)),
+                                Container(
+                                  width: 2,
+                                  height: 38,
+                                  color: borderColor,
+                                ),
+                                const Icon(Icons.location_on_rounded, size: 20, color: Color(0xFFEA580C)),
+                              ],
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Pickup',
+                                    style: GoogleFonts.dmSans(fontSize: 11, color: textSecondary, fontWeight: FontWeight.w500),
+                                  ),
+                                  Text(
+                                    ride.from,
+                                    style: GoogleFonts.syne(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Drop-off',
+                                    style: GoogleFonts.dmSans(fontSize: 11, color: textSecondary, fontWeight: FontWeight.w500),
+                                  ),
+                                  Text(
+                                    ride.to,
+                                    style: GoogleFonts.syne(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // Route Map Preview
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            height: 110,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: borderColor),
+                            ),
+                            child: FlutterMap(
+                              options: MapOptions(
+                                initialCenter: LatLng(
+                                  (_resolveLocation(ride.from).latitude + _resolveLocation(ride.to).latitude) / 2,
+                                  (_resolveLocation(ride.from).longitude + _resolveLocation(ride.to).longitude) / 2,
+                                ),
+                                initialZoom: 11.2,
+                                interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                              ),
+                              children: [
+                                TileLayer(
+                                  urlTemplate: isDark
+                                      ? 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png'
+                                      : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                  userAgentPackageName: 'com.market.app.market_app',
+                                ),
+                                PolylineLayer(
+                                  polylines: [
+                                    Polyline(
+                                      points: [
+                                        _resolveLocation(ride.from),
+                                        _resolveLocation(ride.to),
+                                      ],
+                                      strokeWidth: 3.0,
+                                      color: AppTheme.rideAccent,
+                                    ),
+                                  ],
+                                ),
+                                MarkerLayer(
+                                  markers: [
+                                    Marker(
+                                      point: _resolveLocation(ride.from),
+                                      width: 18,
+                                      height: 18,
+                                      child: Container(
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF16A34A),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.circle, size: 6, color: Colors.white),
+                                      ),
+                                    ),
+                                    Marker(
+                                      point: _resolveLocation(ride.to),
+                                      width: 20,
+                                      height: 20,
+                                      child: const Icon(Icons.location_on, size: 20, color: Color(0xFFEA580C)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+                        const Divider(height: 1),
+                        const SizedBox(height: 14),
+
+                        // Departure Time Row
+                        Row(
+                          children: [
+                            Icon(Icons.access_time_rounded, size: 16, color: AppTheme.rideAccent),
+                            const SizedBox(width: 8),
+                            Text(
+                              DateFormat('EEE, MMM d · h:mm a').format(ride.departureTime),
+                              style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.bold, color: textPrimary),
+                            ),
+                            const Spacer(),
+                            Text(
+                              isPast ? 'Departed' : _formatRemainingTime(ride.departureTime),
+                              style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.rideAccent),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 2. Seat Capacity Progress Card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'SEAT OCCUPANCY',
+                              style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: textSecondary, letterSpacing: 0.8),
+                            ),
+                            Text(
+                              '${participants.length} of ${ride.totalSeats} Booked',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: seatsRemaining == 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: (participants.length / ride.totalSeats).clamp(0.0, 1.0),
+                            backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              seatsRemaining == 0 ? const Color(0xFFDC2626) : AppTheme.rideAccent,
+                            ),
+                            minHeight: 8,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          seatsRemaining == 0
+                              ? 'This ride is fully booked.'
+                              : '$seatsRemaining empty seat${seatsRemaining == 1 ? '' : 's'} remaining to split auto fare.',
+                          style: GoogleFonts.dmSans(fontSize: 11, color: textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 3. Organizer Profile Card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'HOSTED BY',
+                          style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: textSecondary, letterSpacing: 0.8),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: AppTheme.surfaceAlt(isDark),
+                              child: Text(
+                                ride.organizerName.isNotEmpty ? ride.organizerName[0].toUpperCase() : '?',
+                                style: GoogleFonts.syne(fontSize: 18, fontWeight: FontWeight.bold, color: textPrimary),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          isOrganizer ? '${ride.organizerName} (You)' : ride.organizerName,
+                                          style: GoogleFonts.syne(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      FutureBuilder<DocumentSnapshot>(
+                                        future: FirebaseFirestore.instance.collection('users').doc(ride.organizerId).get(),
+                                        builder: (context, snap) {
+                                          if (!snap.hasData || snap.data?.data() == null) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          final data = snap.data!.data() as Map<String, dynamic>;
+                                          return VerificationBadge(
+                                            size: VerificationBadgeSize.compact,
+                                            status: data['verification_status']?.toString() ?? 'unverified',
+                                            role: data['role']?.toString() ?? 'student',
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Ride Organizer · Arranges Auto',
+                                    style: GoogleFonts.dmSans(fontSize: 12, color: textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => showIdCardDialog(context, ride.organizerId),
+                              icon: const Icon(Icons.verified_user_outlined, size: 14),
+                              label: Text('Doc', style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold)),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppTheme.rideAccent,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (canSeeContacts && ride.organizerPhone.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: borderColor),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.phone_outlined, size: 15, color: textSecondary),
+                                const SizedBox(width: 8),
+                                Text(ride.organizerPhone, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.bold, color: textPrimary)),
+                                const Spacer(),
+                                if (!isOrganizer) ...[
+                                  IconButton(
+                                    icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16, color: Color(0xFF25D366)),
+                                    onPressed: () => _launchWhatsApp(ride.organizerPhone),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  IconButton(
+                                    icon: const Icon(Icons.call, size: 16, color: Color(0xFF16A34A)),
+                                    onPressed: () => _launchCall(ride.organizerPhone),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 4. Participants List
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'CONFIRMED RIDERS (${participants.length})',
+                              style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: textSecondary, letterSpacing: 0.8),
+                            ),
+                            if (!canSeeContacts)
+                              Text(
+                                'Contacts unlocked when joined',
+                                style: GoogleFonts.dmSans(fontSize: 10, color: textSecondary),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (participants.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'No participants yet. Be the first to join!',
+                              style: GoogleFonts.dmSans(fontSize: 12, color: textSecondary),
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: participants.length,
+                            separatorBuilder: (context, i) => const Divider(height: 16),
+                            itemBuilder: (context, index) {
+                              final p = participants[index];
+                              final pUserId = p['user_id'] ?? '';
+                              final pName = p['user_name'] ?? 'Peer Student';
+                              final pPhone = p['user_phone'] ?? '';
+                              final isOrg = p['role'] == 'organizer' || pUserId == ride.organizerId;
+                              final isMe = pUserId == currentUser.id;
+
+                              return Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: isOrg
+                                        ? AppTheme.rideAccent.withValues(alpha: 0.15)
+                                        : (isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0)),
+                                    child: Text(
+                                      pName.isNotEmpty ? pName[0].toUpperCase() : '?',
+                                      style: GoogleFonts.syne(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: isOrg ? AppTheme.rideAccent : textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                isMe ? '$pName (You)' : pName,
+                                                style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.bold, color: textPrimary),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (isOrg) ...[
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: AppTheme.rideAccent.withValues(alpha: 0.12),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'Host',
+                                                  style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.rideAccent),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        if (canSeeContacts && pPhone.isNotEmpty)
+                                          Text(
+                                            pPhone,
+                                            style: GoogleFonts.dmSans(fontSize: 11, color: textSecondary),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.badge_outlined, size: 18),
+                                    onPressed: () => showIdCardDialog(context, pUserId),
+                                    tooltip: 'Inspect Student ID',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                  if (canSeeContacts && !isMe && pPhone.isNotEmpty) ...[
+                                    const SizedBox(width: 10),
+                                    IconButton(
+                                      icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 16, color: Color(0xFF25D366)),
+                                      onPressed: () => _launchWhatsApp(pPhone),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    IconButton(
+                                      icon: const Icon(Icons.call, size: 16, color: Color(0xFF16A34A)),
+                                      onPressed: () => _launchCall(pPhone),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                  if (isOrganizer && !isOrg) ...[
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(Icons.remove_circle_outline, size: 18, color: Color(0xFFDC2626)),
+                                      onPressed: () => _confirmKick(context, service, ride.id, pUserId, pName),
+                                      tooltip: 'Remove participant',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              
-              // 2. Participants Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppTheme.rideAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.people_rounded, size: 16, color: AppTheme.rideAccent),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Participants',
-                        style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: docs.length >= ride.totalSeats ? AppTheme.success.withOpacity(0.1) : AppTheme.rideAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: docs.length >= ride.totalSeats ? AppTheme.success.withOpacity(0.2) : AppTheme.rideAccent.withOpacity(0.2),
-                          ),
-                        ),
-                        child: Text(
-                          '${docs.length}/${ride.totalSeats} seats',
-                          style: GoogleFonts.outfit(
-                            color: docs.length >= ride.totalSeats ? AppTheme.success : AppTheme.rideAccent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+
+              // 5. Sticky Bottom Action Bar
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    border: Border(top: BorderSide(color: borderColor)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 10,
+                        offset: const Offset(0, -4),
                       ),
                     ],
                   ),
-                ),
-              ),
-
-              // 3. Privacy Notice
-              if (!canSeeContacts)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppTheme.rideAccent.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppTheme.rideAccent.withOpacity(0.12)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppTheme.rideAccent.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(Icons.privacy_tip_outlined, color: AppTheme.rideAccent, size: 16),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              "Contact details are hidden for privacy. Join this ride to coordinate with others.",
-                              style: GoogleFonts.outfit(fontSize: 12, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, height: 1.4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // 4. Participant List
-              if (docs.isEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Center(
-                      child: Column(
-                        children: [
-                          Icon(Icons.people_outline_rounded, size: 40, color: isDark ? AppTheme.darkTextSecondary.withOpacity(0.3) : AppTheme.lightTextSecondary.withOpacity(0.3)),
-                          const SizedBox(height: 8),
-                          Text('No participants yet', style: GoogleFonts.outfit(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              else
-                SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final data = docs[index];
-                      final name = (data['user_name'] as String?) ?? 'Student';
-                      final role = (data['role'] as String?) ?? 'participant';
-                      final isOrg = role == 'organizer';
-
-                      String userPhone = (data['user_phone'] as String?) ?? '';
-                      if (isOrg && userPhone.isEmpty) {
-                        userPhone = ride.organizerPhone;
-                      }
-                      final isMe = data['user_id'] == currentUser.id;
-                      final isPhoneVerified = (data['user_phone_verified'] as bool?) ?? false;
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: isDark ? AppTheme.darkSurface : Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                            leading: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isOrg ? AppTheme.rideAccent.withOpacity(0.1) : (isDark ? AppTheme.darkSurfaceAlt : AppTheme.lightSurfaceAlt),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(isOrg ? Icons.star_rounded : Icons.person_rounded, color: isOrg ? AppTheme.rideAccent : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary), size: 20),
-                            ),
-                            title: Row(
-                              children: [
-                                Flexible(child: Text(name + (isMe ? ' (You)' : ''), style: TextStyle(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary, fontWeight: FontWeight.w600, fontSize: 14))),
-                                if (isPhoneVerified)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 4),
-                                    child: Icon(Icons.verified, color: AppTheme.rideAccent, size: 16),
-                                  ),
-                              ],
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(isOrg ? 'Organizer' : 'Participant', style: TextStyle(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, fontSize: 11)),
-                                if (canSeeContacts && userPhone.isNotEmpty)
-                                  Text(userPhone, style: TextStyle(color: AppTheme.rideAccent, fontWeight: FontWeight.w600, fontSize: 12)),
-                              ],
-                            ),
-                            trailing: (canSeeContacts && !isMe) ? Row(
-                              mainAxisSize: MainAxisSize.min, 
-                              children: [
-                                if (isOrganizer && !isOrg)
-                                  IconButton(
-                                    icon: Icon(Icons.person_remove_outlined, color: AppTheme.error, size: 20),
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                          title: const Text('Kick Participant?'),
-                                          content: Text('Are you sure you want to remove $name from the ride?'),
-                                          actions: [
-                                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Kick', style: TextStyle(color: Colors.red))),
-                                          ],
-                                        ),
-                                      ) ?? false;
-                                      if (confirm) {
-                                        try {
-                                          await service.kickParticipant(
-                                            rideId: ride.id,
-                                            userId: data['user_id'],
-                                            userName: name,
-                                          );
-                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$name removed.')));
-                                        } catch (e) {
-                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to kick: $e')));
-                                        }
-                                      }
-                                    },
-                                  ),
-                                if (userPhone.isNotEmpty) ...[
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF25D366).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: IconButton(
-                                      icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366), size: 18), 
-                                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () async { 
-                                        final cleanPhone = userPhone.replaceAll(RegExp(r'\D'), ''); 
-                                        final url = "https://wa.me/91$cleanPhone"; 
-                                        if (await canLaunchUrl(Uri.parse(url))) { 
-                                          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); 
-                                        } 
-                                      }
-                                    ), 
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.rideAccent.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: IconButton(
-                                      icon: Icon(Icons.phone_forwarded, color: AppTheme.rideAccent, size: 18), 
-                                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () async { 
-                                        final url = "tel:$userPhone"; 
-                                        if (await canLaunchUrl(Uri.parse(url))) { 
-                                          await launchUrl(Uri.parse(url)); 
-                                        } 
-                                      }
-                                    ),
-                                  ),
-                                ] else if (!isOrganizer || isOrg)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                    child: Text("No number", style: TextStyle(color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, fontSize: 10)),
-                                  )
-                              ]
-                            ) : null,
-                          ),
-                        ),
-                      );
-                    },
-                    childCount: docs.length,
-                  ),
-                ),
-
-              // 5. Action Buttons & Safety Notice
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _PrimaryActions(
-                          ride: ride,
-                          currentUser: currentUser,
-                          isParticipant: isInParticipantList,
-                          isOrganizer: isOrganizer,
-                          participants: docs,
-                          service: service,
-                        ),
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.3) : AppTheme.lightSurfaceAlt,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.auto_delete_outlined, size: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  "All ride coordination data is automatically purged 24 hours after departure.",
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 11,
-                                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  child: SafeArea(
+                    child: _buildBottomActions(
+                      context,
+                      service: service,
+                      isOrganizer: isOrganizer,
+                      isParticipant: isInParticipantList,
+                      seatsRemaining: seatsRemaining,
+                      isCancelled: isCancelled,
+                      isPast: isPast,
                     ),
                   ),
                 ),
@@ -367,430 +640,397 @@ class RideDetailScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-class _PrimaryActions extends StatefulWidget {
-  final Ride ride;
-  final AppUser currentUser;
-  final bool isParticipant;
-  final bool isOrganizer;
-  final List<Map<String, dynamic>> participants;
-  final RideService service;
-
-  const _PrimaryActions({
-    required this.ride,
-    required this.currentUser,
-    required this.isParticipant,
-    required this.isOrganizer,
-    required this.participants,
-    required this.service,
-  });
-
-  @override
-  State<_PrimaryActions> createState() => _PrimaryActionsState();
-}
-
-class _PrimaryActionsState extends State<_PrimaryActions> {
-  bool _busy = false;
-  late bool _isEditingPhone;
-  late TextEditingController _phoneController;
-
-  @override
-  void initState() {
-    super.initState();
-    _isEditingPhone = widget.currentUser.phoneNumber.isEmpty || !widget.currentUser.phoneVerified;
-    _phoneController = TextEditingController(text: widget.currentUser.phoneNumber);
-  }
-
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    super.dispose();
-  }
-
-  int get seatsTaken => widget.participants.length;
-
-  bool get isFull => seatsTaken >= widget.ride.totalSeats;
-
-  Future<bool> _savePhoneInline() async {
-    final text = _phoneController.text.trim();
-    if (text.length != 10) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 10-digit number')));
-      return false;
-    }
-    setState(() => _busy = true);
-    try {
-      final updatedUser = widget.currentUser.copyWith(
-        phoneNumber: text,
-        phoneVerified: (text == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified),
+  Widget _buildBottomActions(
+    BuildContext context, {
+    required RideService service,
+    required bool isOrganizer,
+    required bool isParticipant,
+    required int seatsRemaining,
+    required bool isCancelled,
+    required bool isPast,
+  }) {
+    if (isCancelled) {
+      return Center(
+        child: Text(
+          'This ride was cancelled by the host',
+          style: GoogleFonts.dmSans(fontSize: 13, color: const Color(0xFFDC2626), fontWeight: FontWeight.bold),
+        ),
       );
-      await AuthService.instance.updateUserProfile(updatedUser);
-      setState(() {
-        _isEditingPhone = false;
-      });
-      return true;
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save phone: $e')));
-      return false;
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _handleJoin() async {
-    // Guard: ride is in the past
-    final isPast = widget.ride.departureTime.isBefore(DateTime.now());
-    if (_busy || isFull || widget.ride.status != 'active' || isPast) return;
-    
-    // Every time: Verify phone number
-    if (_isEditingPhone) {
-      final success = await _savePhoneInline();
-      if (!success) return;
     }
 
-    final phone = _phoneController.text.trim();
-    if (phone.length != 10) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 10-digit number before joining.')));
-      return;
+    if (isPast && !isOrganizer && !isParticipant) {
+      return Center(
+        child: Text(
+          'This ride has already departed',
+          style: GoogleFonts.dmSans(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600),
+        ),
+      );
     }
 
-    setState(() => _busy = true);
-    try {
-      final updatedUser = widget.currentUser.copyWith(
-        phoneNumber: phone,
-        phoneVerified: (phone == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified),
-      );
-      await widget.service.joinRide(
-        ride: widget.ride,
-        user: updatedUser,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Joined ride')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to join: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
-  }
-
-  Future<void> _handleLeave() async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await widget.service.leaveRide(
-        ride: widget.ride,
-        user: widget.currentUser,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Left ride')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to leave: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
-  }
-
-  Future<void> _handleCancel() async {
-    if (_busy) return;
-    final confirm = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('Cancel ride?'),
-            content: const Text(
-              'This will cancel the ride for everyone.',
+    if (isOrganizer) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmCancelRide(context, service),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFDC2626),
+                side: const BorderSide(color: Color(0xFFDC2626)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.cancel_outlined, size: 16),
+              label: Text('Cancel Ride', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold)),
             ),
-            actions: [
-              TextButton(
-                onPressed: () =>
-                    Navigator.of(context).pop(false),
-                child: const Text('No'),
-              ),
-              TextButton(
-                onPressed: () =>
-                    Navigator.of(context).pop(true),
-                child: const Text('Yes, cancel'),
-              ),
-            ],
           ),
-        ) ??
-        false;
-    if (!confirm) return;
-
-    setState(() => _busy = true);
-    try {
-      await widget.service.cancelRide(widget.ride);
-      if (!mounted) return;
-      Navigator.of(context).pop();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to cancel: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final rideActive = widget.ride.status == 'active';
-    final isPast     = widget.ride.departureTime.isBefore(DateTime.now());
-
-    // ── Past ride — block all join actions ─────────────────────────
-    if (isPast && !widget.isOrganizer) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkSurface : AppTheme.lightSurfaceAlt,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.block_rounded, size: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-            const SizedBox(width: 8),
-            Text(
-              'This ride has already departed',
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => RideChatScreen(ride: ride, currentUser: currentUser)),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.rideAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                elevation: 0,
               ),
+              icon: const Icon(Icons.chat_bubble_rounded, size: 16),
+              label: Text('Open Group Chat', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold)),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
-    if (!rideActive) {
-      return FilledButton(
-        onPressed: null,
-        style: FilledButton.styleFrom(
+    if (isParticipant) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmLeaveRide(context, service),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFDC2626),
+                side: const BorderSide(color: Color(0xFFDC2626)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.exit_to_app_rounded, size: 16),
+              label: Text('Leave', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => RideChatScreen(ride: ride, currentUser: currentUser)),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.rideAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.chat_bubble_rounded, size: 16),
+              label: Text('Open Group Chat', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Not a participant yet
+    final isFull = seatsRemaining <= 0;
+
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: isFull ? null : () => _showJoinConfirmationSheet(context, service),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.rideAccent,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          elevation: 0,
         ),
         child: Text(
-          widget.ride.status == 'cancelled'
-              ? 'Ride cancelled'
-              : 'Ride completed',
+          isFull ? 'Ride Fully Booked' : 'Join Ride · Split Fare ($seatsRemaining left)',
+          style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.bold),
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    if (widget.isOrganizer) {
-      return FilledButton(
-        onPressed: _busy ? null : _handleCancel,
-        style: FilledButton.styleFrom(
-          backgroundColor: AppTheme.error,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: _busy
-            ? const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : const Text('Cancel ride', style: TextStyle(fontWeight: FontWeight.w600)),
-      );
-    }
+  void _showJoinConfirmationSheet(BuildContext context, RideService service) {
+    final phoneController = TextEditingController(text: currentUser.phoneNumber);
+    bool isSaving = false;
 
-    if (widget.isParticipant) {
-      return FilledButton(
-        onPressed: _busy ? null : _handleLeave,
-        style: FilledButton.styleFrom(
-          backgroundColor: isDark ? AppTheme.darkSurfaceAlt : AppTheme.lightSurfaceAlt,
-          foregroundColor: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          side: BorderSide(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
-        ),
-        child: _busy
-            ? const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
-                ),
-              )
-            : const Text('Leave ride', style: TextStyle(fontWeight: FontWeight.w600)),
-      );
-    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+          final border = isDark ? Colors.white12 : const Color(0xFFE2E8F0);
 
-    final rideFull = isFull;
-    final isShop = widget.currentUser.isShop;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!widget.isParticipant && !isShop && rideActive && !rideFull)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppTheme.rideAccent.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppTheme.rideAccent.withOpacity(0.12)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.rideAccent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.info_outline, color: AppTheme.rideAccent, size: 16),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    "Your phone number will be visible to fellow riders for coordination. Always coordinate before the ride starts.",
-                    style: GoogleFonts.outfit(fontSize: 12, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary, height: 1.4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (_busy)
-          const Center(child: CircularProgressIndicator())
-        else if (rideFull || isShop)
-          FilledButton(
-            onPressed: null,
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: sheetBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
-            ),
-            child: Text(
-              isShop ? 'Restricted for Shop' : 'Ride full',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          )
-        else
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.phone_rounded, size: 15, color: AppTheme.rideAccent),
-                  const SizedBox(width: 6),
                   Text(
-                    'CONTACT NUMBER',
-                    style: GoogleFonts.outfit(
-                      color: AppTheme.rideAccent, 
-                      fontSize: 10, 
-                      fontWeight: FontWeight.w800, 
-                      letterSpacing: 1.2
+                    'Confirm Joining Ride',
+                    style: GoogleFonts.syne(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${ride.from} → ${ride.to} · ${DateFormat('h:mm a').format(ride.departureTime)}',
+                    style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.rideAccent, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Your Contact Phone Number:',
+                    style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      hintText: 'Enter 10-digit number for coordination',
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: border)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Fair Split: Upon arrival, you will split the auto fare equally with fellow co-riders.',
+                      style: GoogleFonts.dmSans(fontSize: 11, color: const Color(0xFF92400E)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              final phone = phoneController.text.trim();
+                              if (phone.isEmpty || phone.length < 10) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a valid 10-digit number')),
+                                );
+                                return;
+                              }
+
+                              setModalState(() => isSaving = true);
+                              try {
+                                final updatedUser = currentUser.copyWith(phoneNumber: phone);
+                                await AuthService.instance.updateUserProfile(updatedUser);
+                                await service.joinRide(ride: ride, user: updatedUser);
+
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Joined ride successfully! Open chat to coordinate.'),
+                                      backgroundColor: Color(0xFF16A34A),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(content: Text('Failed to join: $e')),
+                                  );
+                                }
+                              } finally {
+                                if (ctx.mounted) setModalState(() => isSaving = false);
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.rideAccent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                      child: isSaving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text('Confirm & Reserve Seat', style: GoogleFonts.dmSans(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Container(
-                margin: const EdgeInsets.only(bottom: 24),
-                child: TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  readOnly: !_isEditingPhone,
-                  style: GoogleFonts.outfit(
-                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary, 
-                    fontWeight: FontWeight.w600, 
-                    fontSize: 14
-                  ),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent.withOpacity(0.3), width: 1.5)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder, width: 1.5)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent, width: 2)),
-                    prefixIcon: Icon(Icons.phone_rounded, color: AppTheme.rideAccent, size: 20),
-                    suffixIcon: Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: TextButton(
-                        onPressed: () {
-                          if (_isEditingPhone) {
-                            _savePhoneInline();
-                          } else {
-                            setState(() {
-                              _isEditingPhone = true;
-                            });
-                          }
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          minimumSize: const Size(0, 36),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          backgroundColor: _isEditingPhone ? AppTheme.rideAccent : Colors.transparent,
-                        ),
-                        child: Text(
-                          _isEditingPhone ? 'Save' : 'Edit',
-                          style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w700, color: _isEditingPhone ? Colors.white : AppTheme.rideAccent),
-                        ),
-                      ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                    isDense: true,
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: 60,
-                child: slide_to_act.SlideAction(
-                  text: 'SLIDE TO JOIN RIDE',
-                  textStyle: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    color: isDark ? AppTheme.darkTextSecondary.withOpacity(0.6) : AppTheme.lightTextSecondary.withOpacity(0.6),
-                    letterSpacing: 1.5,
-                  ),
-                  innerColor: AppTheme.rideAccent,
-                  outerColor: AppTheme.rideAccent.withOpacity(0.1),
-                  sliderButtonIcon: Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 22),
-                  elevation: 0,
-                  borderRadius: 16,
-                  sliderButtonIconPadding: 12,
-                  sliderRotate: false,
-                  submittedIcon: Icon(Icons.check_rounded, color: Colors.white, size: 24),
-                  onSubmit: () async {
-                    if (_busy) return null;
-                    await _handleJoin();
-                    return null;
-                  },
-                ),
-              ),
-            ],
-          ),
-      ],
+            ),
+          );
+        },
+      ),
     );
+  }
+
+  Future<void> _confirmLeaveRide(BuildContext context, RideService service) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Leave Ride?'),
+        content: const Text('Your seat will be released for other students to claim.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Leave', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await service.leaveRide(ride: ride, user: currentUser);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Left ride.')));
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmCancelRide(BuildContext context, RideService service) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancel Ride?'),
+        content: const Text('This will cancel the ride for all participants.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cancel Ride', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await service.cancelRide(ride);
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmKick(BuildContext context, RideService service, String rideId, String userId, String name) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Remove $name?'),
+        content: const Text('This will remove the student and free up their seat.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await service.kickParticipant(rideId: rideId, userId: userId, userName: name);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$name removed from ride.')));
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        }
+      }
+    }
+  }
+
+  static void _launchWhatsApp(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+    final url = 'https://wa.me/91$cleanPhone';
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+  }
+
+  static void _launchCall(String phone) async {
+    final url = 'tel:$phone';
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url));
+    }
+  }
+
+  static LatLng _resolveLocation(String query) {
+    final lower = query.toLowerCase();
+    if (lower.contains('talcher') && (lower.contains('station') || lower.contains('road'))) {
+      return const LatLng(20.9507, 85.2281);
+    }
+    if (lower.contains('angul') && lower.contains('station')) {
+      return const LatLng(20.8443, 85.1011);
+    }
+    if (lower.contains('bus') || (lower.contains('angul') && lower.contains('stand'))) {
+      return const LatLng(20.8385, 85.1054);
+    }
+    if (lower.contains('banarpal')) {
+      return const LatLng(20.8710, 85.1610);
+    }
+    if (lower.contains('thermal') || lower.contains('hatatota')) {
+      return const LatLng(20.9160, 85.2020);
+    }
+    return const LatLng(20.9320, 85.2555);
+  }
+
+  String _formatRemainingTime(DateTime departure) {
+    final diff = departure.difference(DateTime.now());
+    if (diff.isNegative) return 'Departing now';
+    if (diff.inHours > 24) return 'Departs in ${diff.inDays}d';
+    if (diff.inHours > 0) return 'Departs in ${diff.inHours}h ${diff.inMinutes % 60}m';
+    return 'Departs in ${diff.inMinutes}m';
   }
 }

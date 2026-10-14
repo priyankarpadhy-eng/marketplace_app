@@ -9,13 +9,11 @@ import '../models/app_user.dart';
 import 'list_product_screen.dart';
 import 'listing_detail_screen.dart';
 
-import 'bike_rental_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'shop/shop_setup_screen.dart';
 import '../theme/app_theme.dart';
-import '../models/food_models.dart';
-import '../services/food_service.dart';
 import '../widgets/app_loader.dart';
+import '../widgets/verification_modal.dart';
 
 // â”€â”€ Design Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const _kBg          = Color(0xFFF7F0FF);
@@ -200,7 +198,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         : filtered;
 
     final totalAvail = _items.where((i) => i.status == 'available').length;
-    final totalBikes = _items.where((i) => i.category.toLowerCase().contains('bike')).length;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -209,9 +206,18 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 95),
         child: GestureDetector(
-          onTap: () {
+          onTap: () async {
+            AppUser activeUser = widget.currentUser;
+            if (!activeUser.isDocumentVerified) {
+              final updated = await showVerificationModal(context, currentUser: activeUser);
+              if (updated != null) {
+                activeUser = updated;
+              }
+            }
+            
+            if (!context.mounted) return;
             Navigator.push(context, MaterialPageRoute(
-              builder: (_) => ListProductScreen(currentUser: widget.currentUser),
+              builder: (_) => ListProductScreen(currentUser: activeUser),
             ));
           },
           child: Container(
@@ -336,19 +342,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                         _StatCard(icon: Icons.grid_view_rounded, count: '${_items.length}', label: 'Total',     accentColor: AppTheme.accent(isDark), isDark: isDark, onTap: null),
                         const SizedBox(width: 10),
                         _StatCard(icon: Icons.check_circle_outline_rounded, count: '$totalAvail', label: 'Available', accentColor: AppTheme.success, isDark: isDark, onTap: null),
-                        const SizedBox(width: 10),
-                        _StatCard(icon: Icons.motorcycle_rounded, count: '$totalBikes', label: 'Bikes', accentColor: AppTheme.warning, isDark: isDark, onTap: _showComingSoon),
                       ]),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // â”€â”€ Bike Rentals card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                    if (_searchCtrl.text.isEmpty) ...[
-                      _ActivityFoodCard(onTap: _showComingSoon),
-                      const SizedBox(height: 16),
-                      _ActiveOrderTracker(userId: widget.currentUser.id),
-                      const SizedBox(height: 16),
-                      _ActivityBikeCard(onTap: _showComingSoon),
                       const SizedBox(height: 20),
                     ],
 
@@ -452,31 +446,27 @@ class _HeroCarousel extends StatelessWidget {
                       Positioned(
                         top: 0, left: 0, bottom: 0, right: 130,
                         child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.poppins(color: const Color(0xFF111111).withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 2),
-                                Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.poppins(color: const Color(0xFF111111), fontSize: 16, fontWeight: FontWeight.w800, height: 1.2)),
-                                const SizedBox(height: 2),
-                                Text(item.description, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.poppins(color: const Color(0xFF111111).withOpacity(0.8), fontSize: 11, height: 1.3)),
-                                const SizedBox(height: 10),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                                  decoration: BoxDecoration(color: _kDark, borderRadius: BorderRadius.circular(20)),
-                                  child: Text('₹${item.price.toStringAsFixed(0)}  >',
-                                    style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
-                                ),
-                              ],
-                            ),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(color: const Color(0xFF111111).withValues(alpha: 0.7), fontSize: 11, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 2),
+                              Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(color: const Color(0xFF111111), fontSize: 16, fontWeight: FontWeight.w800, height: 1.2)),
+                              const SizedBox(height: 2),
+                              Text(item.description, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(color: const Color(0xFF111111).withValues(alpha: 0.8), fontSize: 11, height: 1.3)),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(color: _kDark, borderRadius: BorderRadius.circular(20)),
+                                child: Text('₹${item.price.toStringAsFixed(0)}  >',
+                                  style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -573,450 +563,4 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// â”€â”€ Bike Rentals Activity Card (fetches live stats) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class _ActivityBikeCard extends StatefulWidget {
-  final VoidCallback onTap;
-  const _ActivityBikeCard({required this.onTap});
-
-  @override
-  State<_ActivityBikeCard> createState() => _ActivityBikeCardState();
-}
-
-class _ActivityBikeCardState extends State<_ActivityBikeCard> {
-  double? _lowestRate;
-  int?    _availableCount;
-  bool    _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchBikeStats();
-  }
-
-  Future<void> _fetchBikeStats() async {
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('bike_rentals')
-          .where('isAvailable', isEqualTo: true)
-          .get();
-
-      final docs = snap.docs;
-      final count = docs.length;
-
-      double? lowest;
-      for (final d in docs) {
-        final rate = (d.data()['pricePerHour'] ?? 0.0).toDouble();
-        if (rate > 0 && (lowest == null || rate < lowest)) lowest = rate;
-      }
-
-      if (mounted) {
-        setState(() {
-          _lowestRate      = lowest;
-          _availableCount  = count;
-          _loading         = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final List<Color> gradColors = isDark
-        ? [const Color(0xFF231B07), const Color(0xFF1A1404), const Color(0xFF1A1404)]
-        : [const Color(0xFFFFFDF5), const Color(0xFFFFF9E6), const Color(0xFFFFF9E6)];
-
-    final textMain = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSub  = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
-    const amber    = Color(0xFFF59E0B);
-
-    // Compute display values
-    final bool hasData       = !_loading && (_availableCount ?? 0) > 0;
-    final String rateVal     = _loading
-        ? 'Loading...'
-        : (_lowestRate != null ? '₹${_lowestRate!.toStringAsFixed(0)}/hr' : 'N/A');
-    final String availVal    = _loading
-        ? 'Loading...'
-        : (hasData ? '${_availableCount} bike${_availableCount == 1 ? '' : 's'}' : 'N/A');
-
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: gradColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.border(isDark)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // â”€â”€ Top row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 58, height: 58,
-                  decoration: BoxDecoration(
-                    color: amber.withOpacity(isDark ? 0.18 : 0.15),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: amber.withOpacity(0.3)),
-                  ),
-                  child: const Icon(Icons.motorcycle_rounded, color: amber, size: 30),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                        decoration: BoxDecoration(color: amber, borderRadius: BorderRadius.circular(20)),
-                        child: Text('CAMPUS RIDES',
-                          style: GoogleFonts.poppins(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-                      ),
-                      const SizedBox(height: 5),
-                      Text('Bike Rentals',
-                        style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w800, color: textMain)),
-                      Text('Rent a bike Â· ride anywhere',
-                        style: GoogleFonts.poppins(fontSize: 11, color: textSub)),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: widget.onTap,
-                  child: Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(color: isDark ? amber : const Color(0xFF1A1A2E), shape: BoxShape.circle),
-                    child: Icon(Icons.arrow_outward_rounded, color: isDark ? Colors.black : Colors.white, size: 18),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-            Divider(color: isDark ? Colors.white12 : amber.withOpacity(0.2), height: 1),
-            const SizedBox(height: 14),
-
-            // â”€â”€ Live stat chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            Row(children: [
-              // Lowest rate
-              _BikeStatChip(
-                icon: Icons.currency_rupee_rounded,
-                label: 'Starting Rate',
-                value: rateVal,
-                isDark: isDark,
-                highlight: _lowestRate != null,
-              ),
-              const SizedBox(width: 8),
-              // Available count
-              _BikeStatChip(
-                icon: Icons.two_wheeler_rounded,
-                label: 'Available Now',
-                value: availVal,
-                isDark: isDark,
-                highlight: hasData,
-              ),
-              const SizedBox(width: 8),
-              // Available count repeated as "Ready to Ride" context chip
-              _BikeStatChip(
-                icon: hasData ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                label: hasData ? 'Ready to Ride' : 'No Bikes',
-                value: hasData ? 'Yes' : 'N/A',
-                isDark: isDark,
-                highlight: hasData,
-              ),
-            ]),
-
-            const SizedBox(height: 14),
-
-            // â”€â”€ CTA button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: widget.onTap,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isDark ? AppTheme.accent(isDark) : const Color(0xFFE27C00),
-                  foregroundColor: isDark ? AppTheme.darkBg : Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                ),
-                icon: const Icon(Icons.motorcycle_rounded, size: 16),
-                label: Text('Browse Available Bikes',
-                  style: GoogleFonts.roboto(fontWeight: FontWeight.w600, fontSize: 13)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// â”€â”€ Bike stat chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class _BikeStatChip extends StatelessWidget {
-  final IconData icon;
-  final String   label;
-  final String   value;
-  final bool     isDark;
-  final bool     highlight;
-  const _BikeStatChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.isDark,
-    this.highlight = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const amber = Color(0xFFF59E0B);
-    final iconColor = highlight ? amber : (isDark ? Colors.white30 : Colors.grey.shade400);
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(
-          color: AppTheme.surface(isDark),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppTheme.border(isDark),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 14, color: iconColor),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: GoogleFonts.outfit(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
-              ),
-            ),
-            Text(
-              label,
-              style: GoogleFonts.roboto(fontSize: 8, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
-
-class _ActivityFoodCard extends StatelessWidget {
-  final VoidCallback onTap;
-  const _ActivityFoodCard({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final List<Color> gradColors = isDark
-        ? [const Color(0xFF0C1D15), const Color(0xFF081610), const Color(0xFF081610)]
-        : [const Color(0xFFF7FDF9), const Color(0xFFEFFBF3), const Color(0xFFEFFBF3)];
-
-    final textMain = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSub = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
-    const primary = Color(0xFF10B981);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: gradColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.border(isDark)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          children: [
-            Container(
-              width: 58, height: 58,
-              decoration: BoxDecoration(
-                color: primary.withOpacity(isDark ? 0.18 : 0.15),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: primary.withOpacity(0.3)),
-              ),
-              child: const Icon(Icons.fastfood_rounded, color: primary, size: 30),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(20)),
-                    child: Text('FOOD DELIVERY',
-                        style: GoogleFonts.roboto(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                  ),
-                  const SizedBox(height: 5),
-                  Text('Order Delicious Food',
-                      style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold, color: textMain)),
-                  Text('From campus restaurants',
-                      style: GoogleFonts.roboto(fontSize: 11, color: textSub)),
-                ],
-              ),
-            ),
-            Container(
-              width: 38, height: 38,
-              decoration: BoxDecoration(color: isDark ? primary : const Color(0xFF1A1A2E), shape: BoxShape.circle),
-              child: Icon(Icons.arrow_forward_ios_rounded, color: isDark ? Colors.black : Colors.white, size: 14),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Active Order Tracker ──────────────────────────────────────────
-class _ActiveOrderTracker extends StatelessWidget {
-  final String userId;
-  const _ActiveOrderTracker({required this.userId});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<FoodOrder>>(
-      stream: FoodService().getUserOrders(userId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        // Get most recent order
-        final order = snapshot.data!.first;
-        
-        // Don't show if cancelled
-        if (order.status == OrderStatus.cancelled) {
-          return const SizedBox.shrink();
-        }
-
-        // Hide the card 5 minutes after it was marked as delivered
-        if (order.status == OrderStatus.delivered) {
-          final timeSinceDelivery = DateTime.now().difference(order.updatedAt ?? order.createdAt);
-          if (timeSinceDelivery.inMinutes >= 5) {
-            return const SizedBox.shrink();
-          }
-        }
-
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final bgColor = isDark ? AppTheme.darkSurface : AppTheme.lightSurface;
-        final textColor = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-
-        int currentStep = 0;
-        String statusText = 'Waiting for restaurant...';
-        
-        switch (order.status) {
-          case OrderStatus.new_order:
-            currentStep = 0;
-            statusText = 'Waiting for restaurant to confirm';
-            break;
-          case OrderStatus.confirmed:
-            currentStep = 1;
-            statusText = 'The restaurant is preparing your food';
-            break;
-          case OrderStatus.preparing:
-            currentStep = 1;
-            statusText = 'The restaurant is preparing your food';
-            break;
-          case OrderStatus.ready_for_pickup:
-            currentStep = 2;
-            statusText = 'Your food is ready for pickup/delivery!';
-            break;
-          case OrderStatus.delivered:
-            currentStep = 3;
-            statusText = 'Delivered. Enjoy your meal!';
-            break;
-          default:
-            currentStep = 0;
-            break;
-        }
-
-        return Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.border(isDark)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Active Food Order', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
-                  Text('#${order.id.substring(0, 5).toUpperCase()}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF10B981))),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text('Order Status:', style: GoogleFonts.roboto(fontSize: 12, color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary)),
-              Text(statusText, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w500, color: textColor)),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _buildStep(context, 0, currentStep, 'New', isDark),
-                  _buildLine(context, 1, currentStep, isDark),
-                  _buildStep(context, 1, currentStep, 'Kitchen', isDark),
-                  _buildLine(context, 2, currentStep, isDark),
-                  _buildStep(context, 2, currentStep, 'Ready', isDark),
-                  _buildLine(context, 3, currentStep, isDark),
-                  _buildStep(context, 3, currentStep, 'Delivered', isDark),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStep(BuildContext context, int stepIndex, int currentStep, String label, bool isDark) {
-    final bool isActive = stepIndex <= currentStep;
-    final color = isActive ? const Color(0xFF10B981) : (isDark ? Colors.white24 : Colors.black12);
-    
-    return Column(
-      children: [
-        Container(
-          width: 20, height: 20,
-          decoration: BoxDecoration(
-            color: isActive ? color : Colors.transparent,
-            shape: BoxShape.circle,
-            border: Border.all(color: color, width: 2),
-          ),
-          child: isActive 
-              ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
-              : null,
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: GoogleFonts.roboto(fontSize: 10, color: isActive ? (isDark ? Colors.white : Colors.black87) : (isDark ? Colors.white54 : Colors.black45), fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
-      ],
-    );
-  }
-
-  Widget _buildLine(BuildContext context, int targetStep, int currentStep, bool isDark) {
-    final bool isActive = targetStep <= currentStep;
-    final color = isActive ? const Color(0xFF10B981) : (isDark ? Colors.white24 : Colors.black12);
-    
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16), // offset for text below dot
-        height: 2,
-        color: color,
-      ),
-    );
-  }
-}
 

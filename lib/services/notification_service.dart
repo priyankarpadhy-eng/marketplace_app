@@ -11,7 +11,6 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
 import '../main.dart';
 import '../screens/main_layout.dart';
-import '../screens/restaurant/restaurant_root_screen.dart';
 import 'auth_service.dart';
 
 // Mandatory top-level method for background handling
@@ -87,24 +86,17 @@ class NotificationService {
 
     if (type == 'ride') {
       Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => MainLayout(currentUser: user, initialIndex: 0)),
+        (route) => false,
+      );
+    } else if (type == 'radar') {
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => MainLayout(currentUser: user, initialIndex: 1)),
         (route) => false,
       );
     } else if (type == 'listing') {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => MainLayout(currentUser: user, initialIndex: 2)),
-        (route) => false,
-      );
-    } else if (type == 'food_order') {
-      // For Restaurants
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => RestaurantRootScreen(currentUser: user)),
-        (route) => false,
-      );
-    } else if (type == 'food_order_update') {
-      // For Students
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => MainLayout(currentUser: user, initialIndex: 2)), // Takes them to Market where Food card is
+        MaterialPageRoute(builder: (_) => MainLayout(currentUser: user, initialIndex: 0)),
         (route) => false,
       );
     }

@@ -3,9 +3,10 @@ class AppUser {
   final String name;
   final String? nickname;
   final String? profileImage;
+  final String? idCardImage;
   final String? passoutYear;
   final String? branch;
-  final String role; // 'student' | 'shop' | 'admin' | 'founder' | 'restaurant'
+  final String role; // 'student' | 'shop' | 'admin' | 'founder'
   final String email;
   final String gender; // 'male' | 'female' | 'other'
   final String phoneNumber;
@@ -21,9 +22,13 @@ class AppUser {
 
   bool get isAdmin => role.trim().toLowerCase() == 'admin' || role.trim().toLowerCase() == 'founder';
   bool get isFounder => role.trim().toLowerCase() == 'founder';
-  bool get isShop => role.trim().toLowerCase() == 'shop' || role.trim().toLowerCase() == 'restaurant';
-  bool get isRestaurant => role.trim().toLowerCase() == 'restaurant';
-  bool get canRent => shopTags.contains('rental') || shopTags.isEmpty;
+  bool get isShop => role.trim().toLowerCase() == 'shop';
+  bool get isAlumni => role.trim().toLowerCase() == 'alumni';
+  bool get isStudent => role.trim().toLowerCase() == 'student' || role.isEmpty;
+  bool get isPendingVerification => verificationStatus.trim().toLowerCase() == 'pending';
+  bool get isApprovedVerification => isVerified || verificationStatus.trim().toLowerCase() == 'approved';
+  bool get isRejectedVerification => verificationStatus.trim().toLowerCase() == 'rejected';
+  bool get isDocumentVerified => isApprovedVerification;
   bool get canSell => shopTags.contains('marketplace') || shopTags.isEmpty;
 
   const AppUser({
@@ -32,6 +37,7 @@ class AppUser {
     required this.email,
     this.nickname,
     this.profileImage,
+    this.idCardImage,
     this.passoutYear,
     this.branch,
     required this.role,
@@ -54,6 +60,7 @@ class AppUser {
       email: (data['email'] as String?) ?? '',
       nickname: (data['nickname'] as String?) ?? (data['displayName'] as String?),
       profileImage: (data['profile_image'] as String?) ?? (data['profileImage'] as String?) ?? (data['photoURL'] as String?),
+      idCardImage: (data['id_card_image'] as String?) ?? (data['idCardImage'] as String?),
       passoutYear: (data['passout_year'] as String?) ?? (data['passoutYear'] as String?) ?? (data['classYear'] as String?),
       branch: (data['branch'] as String?) ?? (data['major'] as String?),
       role: (data['role'] as String?) ?? (data['Role'] as String?) ?? 'student',
@@ -76,6 +83,7 @@ class AppUser {
       'email': email,
       'nickname': nickname,
       'profile_image': profileImage,
+      'id_card_image': idCardImage,
       'passout_year': passoutYear,
       'branch': branch,
       'role': role,
@@ -97,8 +105,10 @@ class AppUser {
     String? email,
     String? nickname,
     String? profileImage,
+    String? idCardImage,
     String? passoutYear,
     String? branch,
+    String? role,
     String? phoneNumber,
     String? gender,
     bool? phoneVerified,
@@ -116,9 +126,10 @@ class AppUser {
       email: email ?? this.email,
       nickname: nickname ?? this.nickname,
       profileImage: profileImage ?? this.profileImage,
+      idCardImage: idCardImage ?? this.idCardImage,
       passoutYear: passoutYear ?? this.passoutYear,
       branch: branch ?? this.branch,
-      role: role,
+      role: role ?? this.role,
       gender: gender ?? this.gender,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       phoneVerified: phoneVerified ?? this.phoneVerified,

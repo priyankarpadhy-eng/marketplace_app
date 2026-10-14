@@ -22,6 +22,10 @@ class MarketplaceItem {
   final DateTime createdAt;
   final bool broadcasted; // Whether the listing was broadcasted
   final DateTime? broadcastedAt;
+  final String? sellingReason;
+  final String? buyingReason;
+  final String? proofImage;
+  final String? videoUrl;
 
   MarketplaceItem({
     required this.id,
@@ -45,6 +49,10 @@ class MarketplaceItem {
     required this.createdAt,
     this.broadcasted = false,
     this.broadcastedAt,
+    this.sellingReason,
+    this.buyingReason,
+    this.proofImage,
+    this.videoUrl,
   });
 
   String get timeAgo {
@@ -86,6 +94,10 @@ class MarketplaceItem {
           DateTime.now(),
       broadcasted: data['broadcasted'] ?? false,
       broadcastedAt: (data['broadcastedAt'] as Timestamp?)?.toDate(),
+      sellingReason: data['sellingReason'],
+      buyingReason: data['buyingReason'],
+      proofImage: data['proofImage'],
+      videoUrl: data['videoUrl'],
     );
   }
 
@@ -111,6 +123,10 @@ class MarketplaceItem {
       'createdAt': FieldValue.serverTimestamp(),
       'broadcasted': broadcasted,
       'broadcastedAt': broadcasted ? FieldValue.serverTimestamp() : null,
+      if (sellingReason != null) 'sellingReason': sellingReason,
+      if (buyingReason != null) 'buyingReason': buyingReason,
+      if (proofImage != null) 'proofImage': proofImage,
+      if (videoUrl != null) 'videoUrl': videoUrl,
     };
   }
 
@@ -146,6 +162,10 @@ class MarketplaceItem {
       broadcastedAt: data['broadcastedAt'] is Timestamp
           ? (data['broadcastedAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['broadcastedAt']?.toString() ?? ''),
+      sellingReason: data['sellingReason'],
+      buyingReason: data['buyingReason'],
+      proofImage: data['proofImage'],
+      videoUrl: data['videoUrl'],
     );
   }
 }

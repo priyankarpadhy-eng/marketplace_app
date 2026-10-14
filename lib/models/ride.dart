@@ -15,6 +15,9 @@ class Ride {
   final int seatsTaken;
   final String status; // 'active' | 'cancelled' | 'completed'
   final String? rideNumber; // 4-digit unique identifier
+  final bool broadcasted;
+  final bool postedToWhatsapp;
+  final DateTime? broadcastedAt;
 
   const Ride({
     required this.id,
@@ -31,6 +34,9 @@ class Ride {
     required this.seatsTaken,
     required this.status,
     this.rideNumber,
+    this.broadcasted = false,
+    this.postedToWhatsapp = false,
+    this.broadcastedAt,
   });
 
   factory Ride.fromMap(Map<String, dynamic> data) {
@@ -51,6 +57,11 @@ class Ride {
       seatsTaken: (data['seats_taken'] as num?)?.toInt() ?? 1,
       status: (data['status'] ?? 'active').toString(),
       rideNumber: data['ride_number']?.toString(),
+      broadcasted: (data['broadcasted'] as bool?) ?? false,
+      postedToWhatsapp: (data['postedToWhatsapp'] as bool?) ?? false,
+      broadcastedAt: data['broadcastedAt'] != null 
+          ? DateTime.tryParse(data['broadcastedAt'].toString())?.toLocal()
+          : null,
     );
   }
 
@@ -69,6 +80,9 @@ class Ride {
       'seats_taken': seatsTaken,
       'status': status,
       'ride_number': rideNumber,
+      'broadcasted': broadcasted,
+      'postedToWhatsapp': postedToWhatsapp,
+      'broadcastedAt': broadcastedAt?.toUtc().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
     };
   }

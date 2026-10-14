@@ -28,7 +28,7 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen> {
   final _descriptionController = TextEditingController();
   
   String _selectedCategory = 'Marketplace';
-  final List<String> _categories = ['Marketplace', 'Bike Rental', 'Food & Snacks', 'Services', 'Other'];
+  final List<String> _categories = ['Marketplace', 'Services', 'Other'];
   
   final List<File> _localImages = [];
   final List<String> _uploadedUrls = [];

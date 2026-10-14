@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/post.dart';
 import '../models/post_comment.dart';
 import '../services/feed_service.dart';
-import '../models/app_user.dart';
 import 'package:intl/intl.dart';
+import 'id_card_dialog.dart';
 
 class CommentSheet extends StatefulWidget {
   final Post post;
@@ -175,11 +175,18 @@ class _CommentSheetState extends State<CommentSheet> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: const Color(0xFFFACC15).withOpacity(0.1),
-            child: Text(comment.authorName[0].toUpperCase(), 
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFFACC15))),
+          GestureDetector(
+            onTap: () {
+              if (comment.authorId.isNotEmpty) {
+                showIdCardDialog(context, comment.authorId);
+              }
+            },
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: const Color(0xFFFACC15).withOpacity(0.1),
+              child: Text(comment.authorName[0].toUpperCase(), 
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFFACC15))),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -188,7 +195,14 @@ class _CommentSheetState extends State<CommentSheet> {
               children: [
                 Row(
                   children: [
-                    Text(comment.authorName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                    GestureDetector(
+                      onTap: () {
+                        if (comment.authorId.isNotEmpty) {
+                          showIdCardDialog(context, comment.authorId);
+                        }
+                      },
+                      child: Text(comment.authorName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                    ),
                     const SizedBox(width: 8),
                     Text(DateFormat.jm().format(comment.createdAt), 
                       style: const TextStyle(color: Colors.grey, fontSize: 10)),

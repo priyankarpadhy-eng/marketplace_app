@@ -47,6 +47,18 @@ class PermissionService {
     return false;
   }
 
+  static Future<bool> requestLocationPermission(BuildContext context) async {
+    final status = await Permission.location.request();
+    if (status.isGranted) return true;
+
+    if (status.isPermanentlyDenied) {
+      if (context.mounted) {
+        _showPermanentlyDeniedDialog(context, "Location");
+      }
+    }
+    return false;
+  }
+
   static void _showPermanentlyDeniedDialog(BuildContext context, String feature) {
     showDialog(
       context: context,

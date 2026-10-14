@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:slide_to_act/slide_to_act.dart' as slide_to_act;
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../models/app_user.dart';
+import '../models/ride.dart';
 import '../services/ride_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
@@ -26,16 +25,16 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fromController = TextEditingController();
   final _toController = TextEditingController();
-  
-  TextEditingController? _fromFieldController;
-  TextEditingController? _toFieldController;
   final _phoneController = TextEditingController();
 
   DateTime? _departure;
   String _genderPreference = 'mixed';
-  int _seats = 4;
-  
+  int _seats = 3;
+  bool _submitting = false;
+  final RideService _rideService = RideService();
+
   final List<String> _allPlaces = [
+    'Campus Main Gate',
     'Aryabhatta Bhawan',
     'Brahmos Bhawan',
     'Surya Bhawan',
@@ -43,164 +42,161 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
     'Akash Bhawan',
     'Rohini Bhawan',
     'Prithwi Bhawan',
+    'Talcher Station',
     'Talcher Road',
     'Talcher Thermal',
-    'Talcher Station',
-    'Angul Bus Stand',
     'Angul Station',
-    'Banarpal',
+    'Angul Bus Stand',
+    'Banarpal Chowk',
   ];
-
-  bool _submitting = false;
-  late bool _isEditingPhone;
-  final RideService _rideService = RideService();
 
   @override
   void initState() {
     super.initState();
-    _isEditingPhone = widget.currentUser.phoneNumber.isEmpty || !widget.currentUser.phoneVerified;
     _phoneController.text = widget.currentUser.phoneNumber;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showResponsibilityDialog();
-    });
-  }
-
-  void _showResponsibilityDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Icon(Icons.info_outline_rounded, color: AppTheme.rideAccent),
-            const SizedBox(width: 8),
-            Text("Organizer Note", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Text(
-          "As the ride creator, the responsibility of contacting the auto-rickshaw/rickshaw is yours. IGIT Marketplace is just a platform to connect users and split costs.",
-          style: GoogleFonts.outfit(fontSize: 15, height: 1.5),
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.rideAccent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text("OK", style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ],
-      ),
-    );
+    // Default departure: today, next hour rounded
+    final now = DateTime.now();
+    _departure = DateTime(now.year, now.month, now.day, now.hour + 1, 0);
   }
 
   @override
   void dispose() {
     _fromController.dispose();
     _toController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDeparture() async {
+  void _swapLocations() {
+    if (_fromController.text.isEmpty && _toController.text.isEmpty) return;
+    setState(() {
+      final temp = _fromController.text;
+      _fromController.text = _toController.text;
+      _toController.text = temp;
+    });
+  }
+
+  Future<void> _pickDepartureDate() async {
     final now = DateTime.now();
-    final date = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       firstDate: now,
       lastDate: now.add(const Duration(days: 30)),
-      initialDate: now,
+      initialDate: _departure ?? now,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
               primary: AppTheme.rideAccent,
               onPrimary: Colors.white,
-              onSurface: Colors.black,
+              onSurface: const Color(0xFF0F172A),
             ),
           ),
           child: child!,
         );
       },
     );
-    if (date == null) return;
+    if (pickedDate == null) return;
 
-    final time = await showTimePicker(
+    if (!mounted) return;
+    final pickedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      initialTime: TimeOfDay.fromDateTime(_departure ?? now),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
               primary: AppTheme.rideAccent,
               onPrimary: Colors.white,
-              onSurface: Colors.black,
+              onSurface: const Color(0xFF0F172A),
             ),
           ),
           child: child!,
         );
       },
     );
-    if (time == null) return;
+    if (pickedTime == null) return;
 
     setState(() {
       _departure = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
+  }
+
+  void _setDepartureShortcut(int dayOffset) {
+    final now = DateTime.now();
+    final targetDay = now.add(Duration(days: dayOffset));
+    setState(() {
+      final currentHour = _departure?.hour ?? now.hour + 1;
+      final currentMinute = _departure?.minute ?? 0;
+      _departure = DateTime(
+        targetDay.year,
+        targetDay.month,
+        targetDay.day,
+        currentHour,
+        currentMinute,
       );
     });
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
-    if (_isEditingPhone) {
+
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty || phone.length < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please save your phone number first')),
+        const SnackBar(content: Text('Please enter a valid 10-digit contact phone number')),
       );
       return;
     }
 
-    if (_departure == null) {
+    if (_fromController.text.trim() == _toController.text.trim()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select departure time')),
+        const SnackBar(content: Text('Pickup and Drop-off locations cannot be identical')),
       );
       return;
     }
-    if (_departure!.isBefore(DateTime.now().add(const Duration(minutes: 1)))) {
+
+    if (_departure == null || _departure!.isBefore(DateTime.now().add(const Duration(minutes: 1)))) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Departure time must be in the future')),
+        const SnackBar(content: Text('Departure time must be set in the future')),
       );
       return;
     }
+
     if (_submitting) return;
 
     setState(() => _submitting = true);
     try {
       final updatedOrganizer = widget.currentUser.copyWith(
-        phoneNumber: _phoneController.text.trim(),
-        phoneVerified: (_phoneController.text.trim() == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified),
+        phoneNumber: phone,
+        phoneVerified: phone == widget.currentUser.phoneNumber && widget.currentUser.phoneVerified,
       );
       await AuthService.instance.updateUserProfile(updatedOrganizer);
-      
-      final newRide = await _rideService.createRide(
+
+      final Ride newRide = await _rideService.createRide(
         organizer: updatedOrganizer,
         from: _fromController.text.trim(),
         to: _toController.text.trim(),
         departureTime: _departure!,
         genderPreference: _genderPreference,
         totalSeats: _seats,
-        customPhone: _phoneController.text.trim(),
+        customPhone: phone,
       );
+
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ride created! Split fare between $_seats seats.'),
+          backgroundColor: const Color(0xFF16A34A),
+        ),
+      );
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RideDetailScreen(
@@ -210,463 +206,407 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create ride: $e')),
-      );
-    } finally {
       if (mounted) {
-        setState(() => _submitting = false);
-      }
-    }
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    required bool isDark,
-    required List<String> options,
-  }) {
-    return DropdownButtonFormField<String>(
-      value: controller.text.isEmpty ? null : controller.text,
-      dropdownColor: isDark ? AppTheme.darkSurface : Colors.white,
-      icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.rideAccent),
-      style: GoogleFonts.outfit(color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary, fontWeight: FontWeight.w600, fontSize: 14),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.outfit(color: isDark ? AppTheme.darkTextSecondary : AppTheme.rideAccent, fontWeight: FontWeight.w600, fontSize: 13),
-        filled: true,
-        fillColor: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent.withOpacity(0.3), width: 1.5)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder, width: 1.5)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent, width: 2)),
-        prefixIcon: Icon(icon, color: AppTheme.rideAccent, size: 20),
-        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        isDense: true,
-      ),
-      items: options.map((String option) {
-        return DropdownMenuItem<String>(
-          value: option,
-          child: Text(option),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create ride: $e')),
         );
-      }).toList(),
-      onChanged: (String? newValue) {
-        if (newValue != null) {
-          setState(() {
-            controller.text = newValue;
-          });
-        }
-      },
-      validator: (value) => value == null || value.trim().isEmpty ? 'Please select $label' : null,
-    );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? AppTheme.darkBg : AppTheme.lightBg;
-    final surfaceColor = isDark ? AppTheme.darkSurface : Colors.white;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
-    
+    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? Colors.white12 : const Color(0xFFE2E8F0);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSecondary = isDark ? Colors.white60 : const Color(0xFF64748B);
+
+    final now = DateTime.now();
+    final isToday = _departure != null &&
+        _departure!.year == now.year &&
+        _departure!.month == now.month &&
+        _departure!.day == now.day;
+    final isTomorrow = _departure != null &&
+        _departure!.year == now.add(const Duration(days: 1)).year &&
+        _departure!.month == now.add(const Duration(days: 1)).month &&
+        _departure!.day == now.add(const Duration(days: 1)).day;
+
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: cardBg,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: true,
-        title: Text(
-          'Host a Ride', 
-          style: GoogleFonts.outfit(
-            fontWeight: FontWeight.w700, 
-            color: textPrimary,
-            fontSize: 20,
-          )
-        ),
+        centerTitle: false,
         iconTheme: IconThemeData(color: textPrimary),
+        title: Text(
+          'Host a Ride',
+          style: GoogleFonts.syne(fontSize: 18, fontWeight: FontWeight.bold, color: textPrimary),
+        ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-        child: Column(
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
-            // Main Form
-            Form(
-              key: _formKey,
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+            // Route Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'ROUTE DETAILS',
+                        style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: textSecondary, letterSpacing: 0.8),
+                      ),
+                      IconButton(
+                        onPressed: _swapLocations,
+                        icon: const Icon(Icons.swap_vert_rounded, size: 20),
+                        color: AppTheme.rideAccent,
+                        tooltip: 'Swap locations',
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Origin Input
+                  DropdownButtonFormField<String>(
+                    value: _fromController.text.isNotEmpty ? _fromController.text : null,
+                    decoration: InputDecoration(
+                      labelText: 'Pickup Location',
+                      labelStyle: GoogleFonts.dmSans(fontSize: 12, color: textSecondary),
+                      prefixIcon: const Icon(Icons.trip_origin_rounded, color: Color(0xFF16A34A), size: 18),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: borderColor)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: borderColor)),
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Route Section
-                    _buildSectionHeader('ROUTE', Icons.route_rounded, isDark),
-                    const SizedBox(height: 12),
-                    _buildTextField(
-                      controller: _fromController,
-                      label: 'Pickup Location',
-                      icon: Icons.my_location,
-                      isDark: isDark,
-                      options: _allPlaces,
+                    dropdownColor: cardBg,
+                    style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary),
+                    items: _allPlaces.map((place) => DropdownMenuItem(value: place, child: Text(place))).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => _fromController.text = val);
+                    },
+                    validator: (val) => val == null || val.isEmpty ? 'Select pickup location' : null,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Destination Input
+                  DropdownButtonFormField<String>(
+                    value: _toController.text.isNotEmpty ? _toController.text : null,
+                    decoration: InputDecoration(
+                      labelText: 'Drop-off Location',
+                      labelStyle: GoogleFonts.dmSans(fontSize: 12, color: textSecondary),
+                      prefixIcon: const Icon(Icons.location_on_rounded, color: Color(0xFFEA580C), size: 18),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: borderColor)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: borderColor)),
                     ),
-                    
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      child: Row(
+                    dropdownColor: cardBg,
+                    style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary),
+                    items: _allPlaces.map((place) => DropdownMenuItem(value: place, child: Text(place))).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => _toController.text = val);
+                    },
+                    validator: (val) => val == null || val.isEmpty ? 'Select drop-off location' : null,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Schedule Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'DEPARTURE SCHEDULE',
+                          style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: textSecondary, letterSpacing: 0.8),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 2,
-                            height: 20,
-                            color: AppTheme.rideAccent.withOpacity(0.3),
+                          ChoiceChip(
+                            label: const Text('Today'),
+                            labelStyle: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: isToday ? Colors.white : textPrimary),
+                            selected: isToday,
+                            selectedColor: AppTheme.rideAccent,
+                            backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            onSelected: (_) => _setDepartureShortcut(0),
                           ),
-                          const SizedBox(width: 12),
-                          GestureDetector(
-                            onTap: () {
-                              if (_fromController.text.isNotEmpty || _toController.text.isNotEmpty) {
-                                setState(() {
-                                  final temp = _fromController.text;
-                                  _fromController.text = _toController.text;
-                                  _toController.text = temp;
-                                });
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: AppTheme.rideAccent.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.swap_vert_rounded, color: AppTheme.rideAccent, size: 18),
-                            ),
+                          const SizedBox(width: 6),
+                          ChoiceChip(
+                            label: const Text('Tomorrow'),
+                            labelStyle: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: isTomorrow ? Colors.white : textPrimary),
+                            selected: isTomorrow,
+                            selectedColor: AppTheme.rideAccent,
+                            backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            onSelected: (_) => _setDepartureShortcut(1),
                           ),
                         ],
                       ),
-                    ),
-
-                    _buildTextField(
-                      controller: _toController,
-                      label: 'Drop-off Location',
-                      icon: Icons.location_on,
-                      isDark: isDark,
-                      options: _allPlaces,
-                    ),
-
-                    const SizedBox(height: 24),
-                    
-                    // Departure Time
-                    _buildSectionHeader('DEPARTURE', Icons.schedule_rounded, isDark),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: _pickDeparture,
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppTheme.rideAccent.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.calendar_month_rounded, color: AppTheme.rideAccent, size: 20),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _departure == null ? 'Select Date & Time' : DateFormat('EEEE, MMM dd').format(_departure!),
-                                    style: GoogleFonts.outfit(
-                                      fontWeight: FontWeight.w600, 
-                                      fontSize: 14,
-                                      color: textPrimary,
-                                    ),
-                                  ),
-                                  if (_departure != null)
-                                    Text(
-                                      DateFormat('hh:mm a').format(_departure!),
-                                      style: GoogleFonts.outfit(
-                                        color: AppTheme.rideAccent,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.chevron_right_rounded, color: textSecondary, size: 20),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Gender Preference
-                    _buildSectionHeader('GENDER PREFERENCE', Icons.people_rounded, isDark),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _buildGenderChip('Mixed', 'mixed', Icons.group_rounded, isDark),
-                        const SizedBox(width: 10),
-                        _buildGenderChip('Female', 'female', Icons.female_rounded, isDark),
-                        const SizedBox(width: 10),
-                        _buildGenderChip('Male', 'male', Icons.male_rounded, isDark),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Seats
-                    _buildSectionHeader('AVAILABLE SEATS', Icons.event_seat_rounded, isDark),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          "(Includes yourself)",
-                          style: TextStyle(fontSize: 11, color: textSecondary, fontStyle: FontStyle.italic),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: AppTheme.rideAccent.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppTheme.rideAccent.withOpacity(0.2)),
-                          ),
-                          child: Text(
-                            '$_seats',
-                            style: GoogleFonts.outfit(color: AppTheme.rideAccent, fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: AppTheme.rideAccent,
-                        inactiveTrackColor: isDark ? AppTheme.darkBorder : AppTheme.lightBorder,
-                        thumbColor: AppTheme.rideAccent,
-                        overlayColor: AppTheme.rideAccent.withOpacity(0.15),
-                        trackHeight: 5,
-                        valueIndicatorColor: AppTheme.rideAccent,
-                        valueIndicatorTextStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      child: Slider(
-                        min: 1,
-                        max: 6,
-                        divisions: 5,
-                        value: _seats.toDouble(),
-                        label: '$_seats Seats',
-                        onChanged: (value) {
-                          setState(() {
-                            _seats = value.round();
-                          });
-                        },
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-
-                    // Phone Number
-                    _buildSectionHeader('CONTACT NUMBER', Icons.phone_rounded, isDark),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      readOnly: !_isEditingPhone,
-                      style: GoogleFonts.outfit(color: textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent.withOpacity(0.3), width: 1.5)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder, width: 1.5)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppTheme.rideAccent, width: 2)),
-                        prefixIcon: Icon(Icons.phone_rounded, color: AppTheme.rideAccent, size: 20),
-                        suffixIcon: Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: TextButton(
-                            onPressed: () {
-                              if (_isEditingPhone) {
-                                if (_phoneController.text.trim().length == 10) {
-                                  setState(() {
-                                    _isEditingPhone = false;
-                                  });
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid 10-digit number')));
-                                }
-                              } else {
-                                setState(() {
-                                  _isEditingPhone = true;
-                                });
-                              }
-                            },
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              minimumSize: const Size(0, 36),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              backgroundColor: _isEditingPhone ? AppTheme.rideAccent : Colors.transparent,
-                            ),
-                            child: Text(
-                              _isEditingPhone ? 'Save' : 'Edit',
-                              style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w700, color: _isEditingPhone ? Colors.white : AppTheme.rideAccent),
-                            ),
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                        isDense: true,
-                      ),
-                      validator: (v) => (v == null || v.isEmpty || v.length != 10) ? "Valid 10-digit number required" : null,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-
-            // Safety notice
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.rideAccent.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppTheme.rideAccent.withOpacity(0.12)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.rideAccent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.shield_rounded, color: AppTheme.rideAccent, size: 16),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      "Safety first! Please contact your fellow riders once they join to coordinate the trip.",
-                      style: GoogleFonts.outfit(
-                        fontSize: 12, 
-                        color: textSecondary, 
-                        fontWeight: FontWeight.w500,
-                        height: 1.4,
+                  const SizedBox(height: 12),
+
+                  InkWell(
+                    onTap: _pickDepartureDate,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.rideAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.schedule_rounded, color: AppTheme.rideAccent, size: 20),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _departure != null ? DateFormat('EEEE, MMM d · yyyy').format(_departure!) : 'Select Date & Time',
+                                  style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.bold, color: textPrimary),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _departure != null ? 'Departure: ${DateFormat('h:mm a').format(_departure!)}' : 'Tap to pick exact departure time',
+                                  style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.rideAccent, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.edit_calendar_rounded, size: 18, color: textSecondary),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              height: 60,
-              child: _submitting
-                ? Center(child: CircularProgressIndicator(color: AppTheme.rideAccent))
-                : slide_to_act.SlideAction(
-                    text: 'SLIDE TO HOST RIDE',
-                    textStyle: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                      color: textSecondary.withOpacity(0.6),
-                      letterSpacing: 1.5,
-                    ),
-                    innerColor: AppTheme.rideAccent,
-                    outerColor: AppTheme.rideAccent.withOpacity(0.1),
-                    sliderButtonIcon: Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 22),
-                    elevation: 0,
-                    borderRadius: 16,
-                    sliderButtonIconPadding: 12,
-                    sliderRotate: false,
-                    submittedIcon: Icon(Icons.check_rounded, color: Colors.white, size: 24),
-                    onSubmit: () async {
-                      if (_formKey.currentState!.validate()) {
-                         await _submit();
-                      }
-                      return null;
-                    },
+            // Ride Settings (Seats + Gender Filter)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'CAPACITY & PREFERENCES',
+                    style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: textSecondary, letterSpacing: 0.8),
                   ),
+                  const SizedBox(height: 14),
+
+                  // Seats Counter
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Available Seats',
+                          style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.bold, color: textPrimary),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: _seats > 1 ? () => setState(() => _seats--) : null,
+                            icon: const Icon(Icons.remove_circle_outline_rounded),
+                            color: textPrimary,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.rideAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$_seats',
+                              style: GoogleFonts.syne(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.rideAccent),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _seats < 6 ? () => setState(() => _seats++) : null,
+                            icon: const Icon(Icons.add_circle_outline_rounded),
+                            color: textPrimary,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1),
+                  const SizedBox(height: 14),
+
+                  // Gender Preference
+                  Text(
+                    'Who can join this ride?',
+                    style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.bold, color: textPrimary),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _buildGenderSegment('Mixed', 'mixed', Icons.group_outlined, isDark),
+                      const SizedBox(width: 8),
+                      _buildGenderSegment('Female Only', 'female', Icons.female_rounded, isDark),
+                      const SizedBox(width: 8),
+                      _buildGenderSegment('Male Only', 'male', Icons.male_rounded, isDark),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Contact Phone Number Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'COORDINATION CONTACT',
+                    style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: textSecondary, letterSpacing: 0.8),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.bold, color: textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Contact Phone Number',
+                      labelStyle: GoogleFonts.dmSans(fontSize: 12, color: textSecondary),
+                      prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: borderColor)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: borderColor)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
+        ),
+      ),
+      bottomSheet: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: BoxDecoration(
+          color: cardBg,
+          border: Border(top: BorderSide(color: borderColor)),
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: _submitting ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.rideAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              child: _submitting
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(
+                      'Publish Ride Offer',
+                      style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon, bool isDark) {
-    return Row(
-      children: [
-        Icon(icon, size: 15, color: AppTheme.rideAccent),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: GoogleFonts.outfit(
-            color: AppTheme.rideAccent, 
-            fontSize: 10, 
-            fontWeight: FontWeight.w800, 
-            letterSpacing: 1.2
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGenderChip(String label, String value, IconData icon, bool isDark) {
+  Widget _buildGenderSegment(String label, String value, IconData icon, bool isDark) {
     final isSelected = _genderPreference == value;
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: () => setState(() => _genderPreference = value),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected 
-              ? AppTheme.rideAccent 
-              : (isDark ? AppTheme.darkSurfaceAlt.withOpacity(0.5) : AppTheme.lightSurfaceAlt.withOpacity(0.8)),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected ? AppTheme.rideAccent : (isDark ? AppTheme.darkBorder : AppTheme.lightBorder),
-            ),
+            color: isSelected ? AppTheme.rideAccent : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon, 
-                color: isSelected ? Colors.white : textSecondary(isDark),
-                size: 18,
-              ),
+              Icon(icon, size: 16, color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF64748B))),
               const SizedBox(height: 4),
               Text(
                 label,
-                style: GoogleFonts.outfit(
-                  color: isSelected ? Colors.white : (isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 12,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.dmSans(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF334155)),
                 ),
               ),
             ],
@@ -675,6 +615,4 @@ class _CreateRideScreenState extends State<CreateRideScreen> {
       ),
     );
   }
-
-  Color textSecondary(bool isDark) => isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
 }
